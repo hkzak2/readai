@@ -1,26 +1,66 @@
-import { ScrollArea } from "./ui/scroll-area";
-import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { Send, ArrowLeft, Plus, List } from "lucide-react";
+import { ArrowLeft, MessageSquare } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Card } from "./ui/card";
+import { ChatWindow } from "./ChatWindow";
+import { NotesWindow } from "./NotesWindow";
+import { useUI } from "../contexts/UIContext";
 
 export const AIAssistant = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { isAICollapsed, setIsAICollapsed, isMobile } = useUI();
+
+  // Keep local and context state in sync
+  useEffect(() => {
+    setIsCollapsed(isAICollapsed);
+  }, [isAICollapsed]);
 
   return (
-    <Card className="glass bg-card/95 shadow-lg h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] w-full p-3 lg:p-4 flex flex-col gap-4 animate-fade-in">
+    <Card className={`glass bg-card/95 shadow-lg 
+      fixed z-50
+      ${isCollapsed 
+        ? 'w-[50px] right-4 top-4 h-[calc(100vh-2rem)]'
+        : `
+          sm:w-[calc(35vw-6rem)] sm:right-8 sm:top-4 sm:h-[calc(100vh-2rem)]
+          lg:h-[calc(100vh-3rem)] sm:max-w-[600px]
+          w-full h-full right-0 top-0
+        `
+      }
+      transition-[width,transform,opacity] duration-300 ease-in-out
+      p-2 sm:p-3 lg:p-4 flex flex-col gap-4 animate-fade-in overflow-hidden`}>
+      
+      {/* Update the collapsed icon button */}
+      <div className={`absolute inset-0 flex items-center justify-center
+        transition-opacity duration-300 ease-in-out
+        ${isCollapsed ? 'opacity-100 delay-150 bg-card/95' : 'opacity-0 pointer-events-none'}
+        ${isMobile ? 'top-auto h-14 bg-card shadow-lg' : ''}`}>
+        <Button 
+          variant="ghost"
+          size="icon"
+          className="hover:bg-transparent"
+          onClick={() => {
+            setIsAICollapsed(false);
+            setIsCollapsed(false);
+          }}
+        >
+          <MessageSquare className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'}`} />
+        </Button>
+      </div>
+
       <Collapsible open={!isCollapsed} className="flex-1">
         <div className="flex items-center justify-between border-b pb-2">
-          <h2 className="text-lg font-semibold">AI Assistant</h2>
+          <h2 className={`text-base sm:text-lg font-semibold transition-opacity duration-300
+            ${isCollapsed ? 'opacity-0' : 'opacity-100'}`}>
+            AI Assistant
+          </h2>
           <CollapsibleTrigger asChild>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8"
-              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="h-8 w-8 sm:hover:bg-background/80"
+              onClick={() => setIsAICollapsed(!isAICollapsed)}
             >
               <ArrowLeft className={`h-4 w-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
             </Button>
@@ -29,63 +69,17 @@ export const AIAssistant = () => {
 
         <CollapsibleContent className="h-full mt-4">
           <Tabs defaultValue="chat" className="h-full flex flex-col">
-            <TabsList className="w-full grid grid-cols-2 mb-4 bg-background/50">
-              <TabsTrigger value="chat" className="flex items-center gap-2">Chat</TabsTrigger>
-              <TabsTrigger value="notes" className="flex items-center gap-2">Notes</TabsTrigger>
+            <TabsList className="w-full grid grid-cols-2 mb-4 bg-background/50 rounded-lg">
+              <TabsTrigger value="chat" className="flex items-center gap-2 text-sm sm:text-base">Chat</TabsTrigger>
+              <TabsTrigger value="notes" className="flex items-center gap-2 text-sm sm:text-base">Notes</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="chat" className="flex-1 h-full flex flex-col gap-4 mt-0">
-              <ScrollArea className="flex-1 pr-4">
-                <div className="space-y-4">
-                  <Card className="p-3 lg:p-4 card-gradient">
-                    <p className="text-sm text-muted-foreground">
-                      Hello! I'm your AI reading companion. I can help you understand the text better and answer any questions you might have.
-                    </p>
-                  </Card>
-                </div>
-              </ScrollArea>
-              
-              <div className="flex gap-2 mt-auto pt-4 border-t">
-                <Input 
-                  placeholder="Ask a question..."
-                  className="bg-secondary/50"
-                />
-                <Button size="icon" className="shrink-0">
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+            <TabsContent value="chat" className="flex-1 h-full mt-0">
+              <ChatWindow />
             </TabsContent>
 
-            <TabsContent value="notes" className="flex-1 h-full flex flex-col gap-4 mt-0">
-              <ScrollArea className="flex-1 pr-4">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <List className="h-4 w-4" />
-                      <span>Your Notes</span>
-                    </div>
-                    <Button variant="outline" size="sm" className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      Add Note
-                    </Button>
-                  </div>
-                  <Card className="p-3 lg:p-4 card-gradient">
-                    <p className="text-sm text-muted-foreground">
-                      No notes yet. Click the "Add Note" button to create your first note.
-                    </p>
-                  </Card>
-                </div>
-              </ScrollArea>
-              
-              <div className="flex gap-2 mt-auto pt-4 border-t">
-                <Input 
-                  placeholder="Add a note..."
-                  className="bg-secondary/50"
-                />
-                <Button size="icon" className="shrink-0">
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+            <TabsContent value="notes" className="flex-1 h-full mt-0">
+              <NotesWindow />
             </TabsContent>
           </Tabs>
         </CollapsibleContent>

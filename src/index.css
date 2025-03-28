@@ -43,6 +43,32 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01", "ss02", "cv01", "cv02", "cv03";
+    margin: 0;
+    overflow: hidden;
+  }
+}
+
+/* Handle mobile viewport height */
+:root {
+  --vh: 1vh;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --vh: 1dvh;
+  }
+}
+
+#root {
+  height: calc(100 * var(--vh));
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* Update mobile height on resize/orientation change */
+@media (max-width: 768px) {
+  #root {
+    height: calc(100 * var(--vh));
   }
 }
 
@@ -57,6 +83,19 @@
 
   .text-balance {
     text-wrap: balance;
+  }
+  
+  /* Mobile-specific utilities */
+  .touch-action-none {
+    touch-action: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .h-screen-safe {
+    height: calc(100 * var(--vh) - env(safe-area-inset-bottom, 0px));
   }
 }
 

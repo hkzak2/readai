@@ -1,17 +1,13 @@
 import { ReadingArea } from "@/components/ReadingArea";
 import { AIAssistant } from "@/components/AIAssistant";
+import { BackToLibrary } from "@/components/BackToLibrary";
 
-const Index = () => {
+export default function Index() {
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col lg:flex-row">
-      <div className="flex-1 p-4 lg:p-6">
-        <ReadingArea />
-      </div>
-      <div className="w-full lg:w-[400px] p-4 lg:p-6">
-        <AIAssistant />
-      </div>
+    <div className="relative h-screen w-screen overflow-hidden">
+      <BackToLibrary />
+      <ReadingArea />
+      <AIAssistant />
     </div>
   );
-};
-
-export default Index;
+}
