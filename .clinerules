@@ -1,0 +1,94 @@
+# Cline's Project-Specific Rules & Guidelines for ReadAI
+
+This document outlines key patterns, preferences, and coding standards to ensure consistency and quality in the ReadAI project. As Cline, I will adhere to these guidelines.
+
+## I. General Principles
+
+1.  **Clarity and Readability:** Code should be easy to understand. Use meaningful variable and function names. Add comments for complex logic.
+2.  **DRY (Don't Repeat Yourself):** Avoid redundant code. Utilize functions, classes, and components to encapsulate reusable logic.
+3.  **Simplicity (KISS - Keep It Simple, Stupid):** Prefer simple solutions over complex ones, unless complexity is justified by requirements.
+4.  **Modularity:** Break down complex systems into smaller, manageable, and independent modules/components.
+5.  **Tool Usage:**
+    *   Prefer `replace_in_file` for targeted edits.
+    *   Use `write_to_file` for new files or complete overwrites when necessary.
+    *   Always confirm tool success before proceeding.
+6.  **Memory Bank:**
+    *   **MANDATORY:** Read ALL memory bank files at the start of EVERY task.
+    *   Update `activeContext.md` and `progress.md` frequently to reflect the current state of work.
+    *   Update other memory bank files and these `.clinerules` when new patterns are established or significant changes are made.
+
+## II. Backend (FastAPI - Python)
+
+1.  **Language & Style:**
+    *   Python 3.10+ (as per `.python-version`).
+    *   Adhere to PEP 8 for code style. Use a linter/formatter if available (e.g., Black, Flake8).
+2.  **Type Hinting:**
+    *   Use type hints for all function signatures and variables.
+    *   Utilize Pydantic models for request and response bodies to ensure data validation and serialization.
+3.  **Asynchronous Operations:**
+    *   Use `async` and `await` for all I/O-bound operations (e.g., database calls, external API requests) to ensure non-blocking behavior.
+4.  **Dependency Injection:**
+    *   Leverage FastAPI's dependency injection system for managing dependencies (e.g., database sessions, external service clients).
+5.  **Project Structure:**
+    *   Organize code logically (e.g., routers, services, models/schemas, utility functions).
+    *   The current project has `main.py` at the root of the `api/` directory.
+6.  **Error Handling:**
+    *   Use FastAPI's `HTTPException` for standard HTTP errors.
+    *   Implement robust error handling and logging.
+7.  **Configuration:**
+    *   Use environment variables for configuration (e.g., API keys, database URLs). Load them using a library like `python-dotenv` or directly via `os.environ.get()`. The project uses `.env` in the `api/` directory.
+8.  **API Design:**
+    *   Follow RESTful principles for API design where appropriate.
+    *   Ensure clear and consistent naming for endpoints and parameters.
+
+## III. Frontend (React with Vite - TypeScript)
+
+1.  **Language & Style:**
+    *   TypeScript for all new components and logic.
+    *   Adhere to common TypeScript and React best practices.
+    *   Use ESLint and Prettier for linting and code formatting (configs: `eslint.config.js`, `postcss.config.js`, `tailwind.config.ts`).
+2.  **Component-Based Architecture:**
+    *   Build UIs using reusable, well-defined components.
+    *   Prefer functional components with Hooks over class components.
+    *   Current structure includes `src/components/`, `src/pages/`, `src/contexts/`, `src/hooks/`, `src/lib/`.
+3.  **State Management:**
+    *   Use React's built-in state (`useState`, `useReducer`) for local component state.
+    *   Utilize Context API (`useContext`) for global state or state shared across multiple components (e.g., `BooksContext.tsx`, `UIContext.tsx`).
+4.  **Props:**
+    *   Define clear and typed interfaces for component props.
+5.  **Styling:**
+    *   Utilize Tailwind CSS for styling, as configured in `tailwind.config.ts` and `globals.css`/`index.css`.
+    *   Create reusable UI components (e.g., in `src/components/ui/`).
+6.  **API Interaction:**
+    *   Use `fetch` API or a library like `axios` for making requests to the backend.
+    *   Handle loading, success, and error states gracefully in components.
+7.  **File Structure:**
+    *   Maintain the existing logical file structure:
+        *   `src/components/`: Reusable UI components.
+        *   `src/components/ui/`: Shadcn/ui components.
+        *   `src/pages/`: Top-level page components.
+        *   `src/contexts/`: React Context providers and consumers.
+        *   `src/hooks/`: Custom React Hooks.
+        *   `src/lib/`: Utility functions, type definitions.
+        *   `src/App.tsx`: Main application component.
+        *   `src/main.tsx`: Application entry point.
+8.  **Build Tool:**
+    *   Vite is used as the build tool (`vite.config.ts`).
+
+## IV. Version Control (Git)
+
+1.  Commit messages should be clear and descriptive.
+2.  Use the MCP Git tools for Git operations when appropriate.
+
+## V. Task Execution Flow
+
+1.  **Understand the Task:** Clarify requirements if needed.
+2.  **Consult Memory Bank:** Review all relevant Memory Bank files.
+3.  **Plan:** Outline steps to complete the task.
+4.  **Execute:** Implement changes, using tools appropriately.
+5.  **Test (if applicable):** Verify changes.
+6.  **Document:** Update Memory Bank files, especially `activeContext.md` and `progress.md`. Update `.clinerules` if new patterns emerge.
+7.  **Attempt Completion:** Present the result.
+
+---
+This is a living document. I will update it as I learn more about the project and your preferences.

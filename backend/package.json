@@ -1,0 +1,21 @@
+{
+  "name": "readai-backend",
+  "version": "1.0.0",
+  "description": "Backend server for ReadAI app with PDF proxy endpoint",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": ["express", "pdf", "proxy", "cors"],
+  "author": "",
+  "license": "MIT"
+}

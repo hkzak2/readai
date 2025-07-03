@@ -52,18 +52,18 @@ export const ReadingArea = () => {
 
   // Handle window resize for PDF page width
   const updateContainerDimensions = () => {
-    if (containerRef.current) {
+if (containerRef.current) {
       const containerWidth = containerRef.current.clientWidth;
       const containerHeight = containerRef.current.clientHeight;
-      
-      // Calculate a more modest width - approximately 65% of container width
-      const maxWidth = Math.min(containerWidth * 0.65, 800);
-      
-      // Set width to fit within container
+
+      // Calculate width to fully fit the container
+      const maxWidth = Math.min(containerWidth * 0.9, 800);
+
+      // Adjust width and height to fit within container
       setPageWidth(maxWidth);
-      
-      // Set height constraint to ensure page fits vertically
-      setPageHeight(containerHeight * 0.9);
+
+      // Ensure height fits vertical space completely
+      setPageHeight(containerHeight);
     }
   };
 
@@ -79,7 +79,7 @@ export const ReadingArea = () => {
   return (
     <main className={`h-full transition-all duration-300 z-0 
       ${isAICollapsed ? 'sm:pr-[74px]' : 'sm:pr-[calc(35vw-6rem)]'}`}>
-      <div className={`relative h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] 
+      <div className={`relative h-[calc(100vh-2rem)] sm:h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] 
         transition-all duration-300 ease-in-out
         ${isAICollapsed ? 'sm:w-[calc(100%-60px)]' : 'sm:w-[calc(70vw-2rem)] w-full'} 
         px-4 sm:px-8`}>
