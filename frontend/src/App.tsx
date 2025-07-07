@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Library from "./pages/Library";
 import { UIProvider } from './contexts/UIContext';
 import { BooksProvider } from './contexts/BooksContext';
+import { BackendHealthCheck } from "./components/BackendHealthCheck";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <BackendHealthCheck />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Navigate to="/library" replace />} />

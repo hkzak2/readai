@@ -9,6 +9,8 @@ import { useNavigate } from "react-router-dom";
 import { EditBookModal } from "@/components/EditBookModal";
 import { useState, useCallback } from "react";
 import { generatePdfThumbnail } from "@/lib/pdf-utils";
+import apiService from "@/services/apiService";
+import { toast } from "@/hooks/use-toast";
 
 export default function Library() {
   const { books, addBook, removeBook, setCurrentBook, updateBook } = useBooks();
@@ -26,7 +28,11 @@ export default function Library() {
     try {
       // Validate file type
       if (file.type !== 'application/pdf') {
-        console.error('Invalid file type');
+        toast({
+          title: "Invalid File",
+          description: "Please upload a PDF file",
+          variant: "destructive"
+        });
         return;
       }
 
@@ -84,21 +90,16 @@ export default function Library() {
       
       const url = new URL(urlStr);
       
-      // Fetch the PDF from URL via backend proxy to avoid CORS issues
-      const proxyUrl = `http://localhost:3001/api/pdf-proxy?url=${encodeURIComponent(url.toString())}`;
-      const response = await Promise.race([
-        fetch(proxyUrl),
-        new Promise<Response>((_, reject) => 
+      // Use our API service to fetch the PDF
+      const pdfBlob = await Promise.race([
+        apiService.proxyPdf(url.toString()),
+        new Promise<Blob>((_, reject) => 
           setTimeout(() => reject(new Error('URL fetch timeout')), 30000)
         )
       ]);
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
-      }
-
+      
       // Get the PDF data
-      const arrayBuffer = await response.arrayBuffer();
+      const arrayBuffer = await pdfBlob.arrayBuffer();
       const pdfData = new Uint8Array(arrayBuffer);
       
       // Validate that this is actually a PDF by checking the header
@@ -106,12 +107,6 @@ export default function Library() {
       const pdfSignature = String.fromCharCode(...pdfHeader);
       if (pdfSignature !== '%PDF') {
         throw new Error('The downloaded file is not a valid PDF. Please check the URL and try again.');
-      }
-      
-      // Check if the content type is PDF (after validation)
-      const contentType = response.headers.get('content-type');
-      if (contentType && !contentType.includes('application/pdf')) {
-        console.warn('Content type is not PDF, but file validation passed:', contentType);
       }
       
       // Generate thumbnail
@@ -148,7 +143,11 @@ export default function Library() {
       }
       
       // TODO: Replace with proper toast notification
-      alert(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
     } finally {
       setIsLoadingUrl(false);
     }

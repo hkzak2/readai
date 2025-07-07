@@ -11,6 +11,7 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import html2canvas from 'html2canvas';
 import { toast } from "@/hooks/use-toast";
 import { ScrollArea } from "./ui/scroll-area";
+import apiService from "../services/apiService";
 
 // Set the worker source for PDF.js (using local file)
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'; // This should match the file in public folder
@@ -162,28 +163,19 @@ export const ReadingArea = () => {
       const imageBase64 = canvas.toDataURL('image/png');
 
       // 2. Send image to get text
-      let textResponse;
+      let textData;
       try {
-        textResponse = await fetch("http://localhost:3001/api/image-to-text", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: imageBase64 }),
-        });
-      } catch (networkError) {
+        textData = await apiService.imageToText(imageBase64);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Cannot connect to backend server. Is it running?";
         toast({ 
           title: "Connection Error", 
-          description: "Cannot connect to backend server. Is it running?",
+          description: errorMessage,
           variant: "destructive" 
         });
+        setIsReading(false);
         return;
       }
-
-      if (!textResponse.ok) {
-        const errorData = await textResponse.json();
-        throw new Error(errorData.error || "Failed to extract text from page.");
-      }
-
-      const textData = await textResponse.json();
         
       // Combine header and body for better reading experience
       let pageText = '';
@@ -200,49 +192,30 @@ export const ReadingArea = () => {
       }
 
       // 3. Send text to get audio
-      let audioResponse;
-      let isRateLimited = false;
       let audioBlob = null;
       let audioUrl = null;
       
       try {
-        audioResponse = await fetch("http://localhost:3001/api/text-to-audio", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: pageText }),
-        });
-        
-        if (audioResponse.status === 429) {
-          isRateLimited = true;
+        audioBlob = await apiService.textToAudio(pageText);
+        audioUrl = URL.createObjectURL(audioBlob);
+      } catch (error) {
+        if (error instanceof Error && error.message === "RATE_LIMIT_EXCEEDED") {
           toast({ 
             title: "Rate Limit Reached", 
             description: "Text-to-speech API rate limit reached. Using text reading mode instead.",
             duration: 5000
           });
-        } else if (!audioResponse.ok) {
-          throw new Error("Failed to generate audio: " + audioResponse.statusText);
+          setIsReading(false);
+          return;
         } else {
-          // Successfully got audio response
-          audioBlob = await audioResponse.blob();
-          audioUrl = URL.createObjectURL(audioBlob);
+          toast({ 
+            title: "Connection Error", 
+            description: "Cannot connect to backend server for audio generation.",
+            variant: "destructive" 
+          });
+          setIsReading(false);
+          return;
         }
-      } catch (networkError) {
-        toast({ 
-          title: "Connection Error", 
-          description: "Cannot connect to backend server for audio generation.",
-          variant: "destructive" 
-        });
-        return;
-      }
-      
-      // If rate limited, provide visual feedback instead of audio
-      if (isRateLimited) {
-        toast({
-          title: "Reading Text",
-          description: "Audio generation unavailable. Please read the text on screen.",
-          duration: 10000,
-        });
-        return;
       }
       
       if (!audioBlob || !audioUrl) {
