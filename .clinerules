@@ -1,94 +1,152 @@
 # Cline's Project-Specific Rules & Guidelines for ReadAI
 
-This document outlines key patterns, preferences, and coding standards to ensure consistency and quality in the ReadAI project. As Cline, I will adhere to these guidelines.
+**CRITICAL DISCOVERY:** ReadAI is a Node.js/Express backend with React frontend, NOT FastAPI/Python. Always verify tech stack against actual codebase.
+
+This document outlines key patterns, preferences, and coding standards to ensure consistency and quality in the ReadAI project.
 
 ## I. General Principles
 
 1.  **Clarity and Readability:** Code should be easy to understand. Use meaningful variable and function names. Add comments for complex logic.
 2.  **DRY (Don't Repeat Yourself):** Avoid redundant code. Utilize functions, classes, and components to encapsulate reusable logic.
-3.  **Simplicity (KISS - Keep It Simple, Stupid):** Prefer simple solutions over complex ones, unless complexity is justified by requirements.
+3.  **Simplicity (KISS):** Prefer simple solutions over complex ones, unless complexity is justified by requirements.
 4.  **Modularity:** Break down complex systems into smaller, manageable, and independent modules/components.
 5.  **Tool Usage:**
-    *   Prefer `replace_in_file` for targeted edits.
-    *   Use `write_to_file` for new files or complete overwrites when necessary.
-    *   Always confirm tool success before proceeding.
+    *   Prefer `replace_string_in_file` for targeted edits.
+    *   Use `insert_edit_into_file` for adding new code sections.
+    *   Always verify actual implementation against memory bank documentation.
 6.  **Memory Bank:**
     *   **MANDATORY:** Read ALL memory bank files at the start of EVERY task.
-    *   Update `activeContext.md` and `progress.md` frequently to reflect the current state of work.
-    *   Update other memory bank files and these `.clinerules` when new patterns are established or significant changes are made.
+    *   Update `activeContext.md` and `progress.md` frequently to reflect current state.
+    *   Keep memory bank synchronized with actual codebase - major discrepancies require full update.
 
-## II. Backend (FastAPI - Python)
+## Core Application Understanding
+
+**ReadAI Features (3 Core Functions):**
+1. **Image-to-Text:** AI-powered text extraction from images using Gemini Vision
+2. **Text-to-Audio:** Convert text to high-quality audio using Gemini's audio generation
+3. **PDF Management:** Library with upload, organization, viewing, and external URL proxy
+
+## II. Backend (Express.js - Node.js)
 
 1.  **Language & Style:**
-    *   Python 3.10+ (as per `.python-version`).
-    *   Adhere to PEP 8 for code style. Use a linter/formatter if available (e.g., Black, Flake8).
-2.  **Type Hinting:**
-    *   Use type hints for all function signatures and variables.
-    *   Utilize Pydantic models for request and response bodies to ensure data validation and serialization.
-3.  **Asynchronous Operations:**
-    *   Use `async` and `await` for all I/O-bound operations (e.g., database calls, external API requests) to ensure non-blocking behavior.
-4.  **Dependency Injection:**
-    *   Leverage FastAPI's dependency injection system for managing dependencies (e.g., database sessions, external service clients).
-5.  **Project Structure:**
-    *   Organize code logically (e.g., routers, services, models/schemas, utility functions).
-    *   The current project has `main.py` at the root of the `api/` directory.
-6.  **Error Handling:**
-    *   Use FastAPI's `HTTPException` for standard HTTP errors.
-    *   Implement robust error handling and logging.
-7.  **Configuration:**
-    *   Use environment variables for configuration (e.g., API keys, database URLs). Load them using a library like `python-dotenv` or directly via `os.environ.get()`. The project uses `.env` in the `api/` directory.
-8.  **API Design:**
-    *   Follow RESTful principles for API design where appropriate.
-    *   Ensure clear and consistent naming for endpoints and parameters.
+    *   JavaScript (Node.js) with modern ES6+ features.
+    *   Consistent async/await patterns for asynchronous operations.
+2.  **Project Structure (Critical Pattern):**
+    *   `src/app.js` - Express app setup with middleware chain
+    *   `src/controllers/` - Feature-specific request handlers (image, audio, pdf)
+    *   `src/services/geminiService.js` - **Single point for ALL AI integration**
+    *   `src/middleware/` - Reusable middleware (CORS, error handling, security)
+    *   `src/utils/` - Helper functions (logging, audio processing)
+    *   `src/config/` - Environment configuration management
+3.  **AI Integration Patterns:**
+    *   All Gemini API calls go through `geminiService.js`
+    *   **"Digital Muhaqqiq" prompt** for enhanced OCR accuracy
+    *   Text length limiting (1000 chars) for cost control
+    *   Structured error handling for API failures
+4.  **Security & Middleware:**
+    *   **Comprehensive CORS** with dynamic origin handling
+    *   Rate limiting with `express-rate-limit`
+    *   Helmet middleware for security headers
+    *   Input validation and size limits
+5.  **Error Handling:**
+    *   Centralized error middleware with consistent JSON responses
+    *   Winston logging with structured output
+    *   Specific handling for AI API rate limits and failures
 
 ## III. Frontend (React with Vite - TypeScript)
 
 1.  **Language & Style:**
-    *   TypeScript for all new components and logic.
-    *   Adhere to common TypeScript and React best practices.
-    *   Use ESLint and Prettier for linting and code formatting (configs: `eslint.config.js`, `postcss.config.js`, `tailwind.config.ts`).
-2.  **Component-Based Architecture:**
-    *   Build UIs using reusable, well-defined components.
-    *   Prefer functional components with Hooks over class components.
-    *   Current structure includes `src/components/`, `src/pages/`, `src/contexts/`, `src/hooks/`, `src/lib/`.
+    *   TypeScript for all components with strict typing
+    *   Modern React patterns with hooks and functional components
+    *   ESLint configuration in `eslint.config.js`
+2.  **Architecture Patterns:**
+    *   **Shadcn/ui ecosystem** - comprehensive UI library in `src/components/ui/`
+    *   **Context + React Query** - Global state via Context, server state via React Query
+    *   **Service layer** - All API calls centralized in `src/services/apiService.ts`
 3.  **State Management:**
-    *   Use React's built-in state (`useState`, `useReducer`) for local component state.
-    *   Utilize Context API (`useContext`) for global state or state shared across multiple components (e.g., `BooksContext.tsx`, `UIContext.tsx`).
-4.  **Props:**
-    *   Define clear and typed interfaces for component props.
-5.  **Styling:**
-    *   Utilize Tailwind CSS for styling, as configured in `tailwind.config.ts` and `globals.css`/`index.css`.
-    *   Create reusable UI components (e.g., in `src/components/ui/`).
-6.  **API Interaction:**
-    *   Use `fetch` API or a library like `axios` for making requests to the backend.
-    *   Handle loading, success, and error states gracefully in components.
-7.  **File Structure:**
-    *   Maintain the existing logical file structure:
-        *   `src/components/`: Reusable UI components.
-        *   `src/components/ui/`: Shadcn/ui components.
-        *   `src/pages/`: Top-level page components.
-        *   `src/contexts/`: React Context providers and consumers.
-        *   `src/hooks/`: Custom React Hooks.
-        *   `src/lib/`: Utility functions, type definitions.
-        *   `src/App.tsx`: Main application component.
-        *   `src/main.tsx`: Application entry point.
-8.  **Build Tool:**
-    *   Vite is used as the build tool (`vite.config.ts`).
+    *   `BooksContext` for PDF library management
+    *   `UIContext` for interface state (collapsible panels, etc.)
+    *   React Query for server state and caching
+    *   Local state for component-specific needs
+4.  **Key Components:**
+    *   `Library.tsx` - Main application interface with PDF management
+    *   `ReadingArea.tsx` - PDF viewer with React-PDF integration
+    *   `apiService.ts` - **Single point for all backend communication**
+5.  **Mobile Responsiveness:**
+    *   Tailwind CSS with mobile-first approach
+    *   Responsive PDF viewing with proper viewport handling
+    *   Touch-friendly interface elements
+6.  **File Handling Patterns:**
+    *   Base64 encoding for image uploads
+    *   PDF.js worker in public folder (critical for deployment)
+    *   Thumbnail generation for library display
 
-## IV. Version Control (Git)
+## IV. AI Integration Best Practices
 
-1.  Commit messages should be clear and descriptive.
-2.  Use the MCP Git tools for Git operations when appropriate.
+1.  **Gemini Service Patterns:**
+    *   Single service class handles all AI operations
+    *   Specialized prompts for different use cases
+    *   Proper error classification and handling
+2.  **Cost Optimization:**
+    *   Text length limits for audio generation
+    *   Efficient prompt design
+    *   Rate limiting to prevent abuse
+3.  **Error Recovery:**
+    *   Graceful fallback for AI failures
+    *   User-friendly error messages
+    *   Retry logic for transient failures
 
-## V. Task Execution Flow
+## V. Development Workflow
 
-1.  **Understand the Task:** Clarify requirements if needed.
-2.  **Consult Memory Bank:** Review all relevant Memory Bank files.
-3.  **Plan:** Outline steps to complete the task.
-4.  **Execute:** Implement changes, using tools appropriately.
-5.  **Test (if applicable):** Verify changes.
-6.  **Document:** Update Memory Bank files, especially `activeContext.md` and `progress.md`. Update `.clinerules` if new patterns emerge.
-7.  **Attempt Completion:** Present the result.
+1.  **Testing Strategy:**
+    *   Test each core feature independently (image, audio, PDF)
+    *   Verify CORS across all endpoints
+    *   Check mobile responsiveness
+2.  **Performance Monitoring:**
+    *   Monitor API usage and costs
+    *   Track response times
+    *   Optimize bundle size and loading
+3.  **Deployment Considerations:**
+    *   Ensure PDF.js worker accessibility
+    *   Configure CORS for production domains
+    *   Set up proper logging and monitoring
+
+## VI. Critical File Locations
+
+**Backend Core:**
+- `backend/src/services/geminiService.js` - ALL AI integration
+- `backend/src/middleware/corsMiddleware.js` - CORS configuration
+- `backend/src/app.js` - Express app setup
+
+**Frontend Core:**
+- `frontend/src/services/apiService.ts` - ALL backend communication
+- `frontend/src/contexts/` - Global state management
+- `frontend/src/pages/Library.tsx` - Main interface
+
+**Configuration:**
+- `backend/.env` - API keys and backend config
+- `frontend/vite.config.ts` - Build configuration
+
+## VII. Task Execution Flow
+
+1.  **Understand the Task:** Clarify requirements and scope
+2.  **Verify Architecture:** Check actual codebase against memory bank
+3.  **Consult Memory Bank:** Review ALL relevant Memory Bank files
+4.  **Plan Implementation:** Consider impact on all three core features
+5.  **Execute Changes:** Use appropriate tools, maintain patterns
+6.  **Test Integration:** Verify changes work with existing features
+7.  **Update Documentation:** Sync memory bank with actual implementation
+8.  **Validate Completion:** Ensure task meets requirements
+
+## VIII. Known Patterns & Solutions
+
+**CORS Handling:** Dynamic origin detection in `corsMiddleware.js`
+**AI Prompting:** "Digital Muhaqqiq" significantly improves OCR results
+**PDF Processing:** Use proxy for external URLs, thumbnails for library
+**Error Handling:** Consistent JSON format across all endpoints
+**Mobile Design:** Viewport utilities and touch-friendly interfaces
+**Performance:** Bundle optimization and lazy loading for large components
 
 ---
-This is a living document. I will update it as I learn more about the project and your preferences.
+**Version 2.0 - Updated 2025-07-13**
+This document reflects the actual Node.js/Express + React implementation.

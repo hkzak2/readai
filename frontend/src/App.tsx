@@ -3,13 +3,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { updateViewportHeight } from "@/lib/utils";
-import Index from "./pages/Index";
-import Library from "./pages/Library";
 import { UIProvider } from './contexts/UIContext';
 import { BooksProvider } from './contexts/BooksContext';
 import { BackendHealthCheck } from "./components/BackendHealthCheck";
+import { AppRouter } from "./components/AppRouter";
 
 const queryClient = new QueryClient();
 
@@ -32,21 +31,17 @@ const App = () => {
     <BooksProvider>
       <UIProvider>
         <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BackendHealthCheck />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Navigate to="/library" replace />} />
-              <Route path="/library" element={<Library />} />
-              <Route path="/read" element={<Index />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </UIProvider>
-  </BooksProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BackendHealthCheck />
+            <BrowserRouter>
+              <AppRouter />
+            </BrowserRouter>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </UIProvider>
+    </BooksProvider>
   );
 };
 

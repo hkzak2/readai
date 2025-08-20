@@ -1,0 +1,360 @@
+const { createClient } = require('@supabase/supabase-js');
+const config = require('../config');
+const logger = require('../utils/logger');
+
+class SupabaseService {
+  constructor() {
+    if (!config.supabase.url || !config.supabase.serviceKey) {
+      throw new Error('Supabase configuration is missing. Please check your environment variables.');
+    }
+
+    // Create Supabase client with service key for backend operations
+    this.supabase = createClient(
+      config.supabase.url,
+      config.supabase.serviceKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+
+    logger.info('Supabase service initialized successfully');
+  }
+
+  // User management
+  async createUserProfile(userId, userData = {}) {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_profiles')
+        .insert({
+          id: userId,
+          display_name: userData.display_name || userData.email,
+          ...userData
+        });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error creating user profile:', error);
+      throw error;
+    }
+  }
+
+  async getUserProfile(userId) {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+      return data;
+    } catch (error) {
+      logger.error('Error fetching user profile:', error);
+      throw error;
+    }
+  }
+
+  // Book management
+  async createBook(userId, bookData) {
+    try {
+      const { data, error } = await this.supabase
+        .from('books')
+        .insert({
+          user_id: userId,
+          title: bookData.title,
+          author: bookData.author,
+          description: bookData.description,
+          pdf_url: bookData.pdf_url,
+          pdf_source: bookData.pdf_source || 'upload',
+          thumbnail_url: bookData.thumbnail_url,
+          total_pages: bookData.total_pages,
+          processing_status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error creating book:', error);
+      throw error;
+    }
+  }
+
+  async getUserBooks(userId) {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_books')
+        .select(`
+          *,
+          books (
+            id,
+            title,
+            author,
+            description,
+            thumbnail_url,
+            total_pages,
+            processing_status,
+            created_at
+          )
+        `)
+        .eq('user_id', userId)
+        .order('last_read_at', { ascending: false, nullsFirst: false });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error fetching user books:', error);
+      throw error;
+    }
+  }
+
+  async addBookToLibrary(userId, bookId, personalData = {}) {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_books')
+        .insert({
+          user_id: userId,
+          book_id: bookId,
+          personal_title: personalData.personal_title,
+          tags: personalData.tags || [],
+          is_favorite: personalData.is_favorite || false
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error adding book to library:', error);
+      throw error;
+    }
+  }
+
+  async updateBookProgress(userId, bookId, progressData) {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_books')
+        .update({
+          last_read_page: progressData.last_read_page,
+          reading_progress: progressData.reading_progress,
+          total_reading_time_minutes: progressData.total_reading_time_minutes,
+          last_read_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .eq('book_id', bookId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error updating book progress:', error);
+      throw error;
+    }
+  }
+
+  // Page management
+  async createPage(bookId, pageData) {
+    try {
+      const { data, error } = await this.supabase
+        .from('pages')
+        .insert({
+          book_id: bookId,
+          page_number: pageData.page_number,
+          image_url: pageData.image_url,
+          image_width: pageData.image_width,
+          image_height: pageData.image_height
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error creating page:', error);
+      throw error;
+    }
+  }
+
+  async savePageText(pageId, textData) {
+    try {
+      const { data, error } = await this.supabase
+        .from('page_text')
+        .upsert({
+          page_id: pageId,
+          extracted_text: textData.extracted_text,
+          extraction_confidence: textData.extraction_confidence,
+          extraction_metadata: textData.extraction_metadata || {},
+          processing_duration_ms: textData.processing_duration_ms
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error saving page text:', error);
+      throw error;
+    }
+  }
+
+  async savePageAudio(pageId, audioData) {
+    try {
+      const { data, error } = await this.supabase
+        .from('page_audio')
+        .upsert({
+          page_id: pageId,
+          voice_persona: audioData.voice_persona || 'default',
+          audio_url: audioData.audio_url,
+          audio_duration_seconds: audioData.audio_duration_seconds,
+          audio_format: audioData.audio_format || 'wav',
+          audio_size_bytes: audioData.audio_size_bytes,
+          voice_settings: audioData.voice_settings || {},
+          generation_metadata: audioData.generation_metadata || {},
+          processing_duration_ms: audioData.processing_duration_ms
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error saving page audio:', error);
+      throw error;
+    }
+  }
+
+  // File storage operations
+  async uploadFile(bucket, filePath, file, options = {}) {
+    try {
+      const { data, error } = await this.supabase.storage
+        .from(bucket)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: options.upsert || false,
+          ...options
+        });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error uploading file:', error);
+      throw error;
+    }
+  }
+
+  async getFileUrl(bucket, filePath) {
+    try {
+      const { data } = this.supabase.storage
+        .from(bucket)
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    } catch (error) {
+      logger.error('Error getting file URL:', error);
+      throw error;
+    }
+  }
+
+  async deleteFile(bucket, filePath) {
+    try {
+      const { data, error } = await this.supabase.storage
+        .from(bucket)
+        .remove([filePath]);
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error deleting file:', error);
+      throw error;
+    }
+  }
+
+  // Cost tracking
+  async recordProcessingCost(userId, costData) {
+    try {
+      const { data, error } = await this.supabase
+        .from('processing_costs')
+        .insert({
+          user_id: userId,
+          book_id: costData.book_id,
+          page_id: costData.page_id,
+          text_extraction_cost: costData.text_extraction_cost || 0,
+          text_to_speech_cost: costData.text_to_speech_cost || 0,
+          conversation_cost: costData.conversation_cost || 0,
+          tokens_used_text: costData.tokens_used_text || 0,
+          tokens_used_audio: costData.tokens_used_audio || 0,
+          tokens_used_conversation: costData.tokens_used_conversation || 0,
+          cost_breakdown: costData.cost_breakdown || {}
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error recording processing cost:', error);
+      throw error;
+    }
+  }
+
+  // Reading sessions
+  async startReadingSession(userId, sessionData) {
+    try {
+      const { data, error } = await this.supabase
+        .from('reading_sessions')
+        .insert({
+          user_id: userId,
+          book_id: sessionData.book_id,
+          start_page: sessionData.start_page,
+          end_page: sessionData.start_page, // Will be updated when session ends
+          pages_read: 0,
+          voice_persona: sessionData.voice_persona,
+          playback_speed: sessionData.playback_speed || 1.0,
+          started_at: new Date().toISOString(),
+          session_status: 'active'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error starting reading session:', error);
+      throw error;
+    }
+  }
+
+  async endReadingSession(sessionId, sessionData) {
+    try {
+      const { data, error } = await this.supabase
+        .from('reading_sessions')
+        .update({
+          end_page: sessionData.end_page,
+          pages_read: sessionData.pages_read,
+          listening_time_minutes: sessionData.listening_time_minutes,
+          ended_at: new Date().toISOString(),
+          session_status: 'completed'
+        })
+        .eq('id', sessionId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error ending reading session:', error);
+      throw error;
+    }
+  }
+}
+
+// Create singleton instance
+const supabaseService = new SupabaseService();
+
+module.exports = supabaseService;

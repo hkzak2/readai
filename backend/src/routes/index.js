@@ -3,6 +3,7 @@ const cors = require('cors');
 const pdfRoutes = require('./pdfRoutes');
 const imageRoutes = require('./imageRoutes');
 const audioRoutes = require('./audioRoutes');
+const booksRoutes = require('./booksRoutes');
 
 const router = express.Router();
 
@@ -13,5 +14,6 @@ router.options('*', cors());
 router.use('/', pdfRoutes);
 router.use('/', imageRoutes);
 router.use('/', audioRoutes);
+router.use('/books', booksRoutes);
 
 module.exports = router;

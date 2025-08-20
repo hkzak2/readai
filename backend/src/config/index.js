@@ -8,6 +8,13 @@ const config = {
   // API Keys
   geminiApiKey: process.env.GEMINI_API_KEY,
   
+  // Supabase configuration
+  supabase: {
+    url: process.env.SUPABASE_URL,
+    serviceKey: process.env.SUPABASE_SERVICE_KEY,
+    anonKey: process.env.SUPABASE_ANON_KEY,
+  },
+  
   // CORS
   allowedOrigins: process.env.ALLOWED_ORIGINS 
     ? process.env.ALLOWED_ORIGINS.split(',') 
