@@ -9,18 +9,36 @@ import { Upload, Trash2, Pencil, Link, Plus, FileText, Search, Grid, List, SortA
 import { useBooks, Book } from "@/contexts/BooksContext";
 import { useNavigate } from "react-router-dom";
 import { EditBookModal } from "@/components/EditBookModal";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { generatePdfThumbnail } from "@/lib/pdf-utils";
 import apiService from "@/services/apiService";
 import { toast } from "@/hooks/use-toast";
 import { ContentLayout } from "@/components/layouts/ContentLayout";
 
 export default function Library() {
-  const { books, addBook, removeBook, setCurrentBook, updateBook } = useBooks();
+  const { books, addBook, removeBook, setCurrentBook, updateBook, uploadPDF, loading, error } = useBooks();
   const navigate = useNavigate();
+  
+  // DEBUG: Log books state whenever it changes
+  useEffect(() => {
+    console.log('🔍 LIBRARY DEBUG - Books state changed:', {
+      booksCount: books.length,
+      books: books.map(book => ({
+        id: book.id,
+        title: book.title,
+        pdf_url: book.pdf_url,
+        defaultCover: book.defaultCover ? `${book.defaultCover.substring(0, 50)}...` : null,
+        coverUrl: book.coverUrl,
+        thumbnail_url: book.thumbnail_url,
+        hasCover: !!(book.defaultCover || book.coverUrl || book.thumbnail_url)
+      }))
+    });
+  }, [books]);
+  
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [addBookModalOpen, setAddBookModalOpen] = useState(false);
   const [uploadTab, setUploadTab] = useState("file");
   
@@ -35,6 +53,7 @@ export default function Library() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsLoadingFile(true);
     try {
       // Validate file type
       if (file.type !== 'application/pdf') {
@@ -46,29 +65,20 @@ export default function Library() {
         return;
       }
 
-      // Read the file as ArrayBuffer with timeout
-      const arrayBuffer = await Promise.race([
-        file.arrayBuffer(),
-        new Promise<ArrayBuffer>((_, reject) => 
-          setTimeout(() => reject(new Error('File reading timeout')), 10000)
-        )
-      ]);
-      
-      const pdfData = new Uint8Array(arrayBuffer);
-      const defaultCover = await generatePdfThumbnail(pdfData);
-
-      // Add the book to our context with data
-      addBook({
+      // Use the new uploadPDF method that handles backend integration
+      await uploadPDF(file, {
         title: file.name.replace(/\.pdf$/i, ''),
-        pdfData,
-        defaultCover,
+        author: '', // Can be extended later with a form
+        description: ''
       });
       
       // Close modal on successful upload
       setAddBookModalOpen(false);
     } catch (error) {
-      console.error('Failed to process PDF:', error);
+      console.error('Failed to upload PDF:', error);
+      // Error handling is now done in the uploadPDF method
     } finally {
+      setIsLoadingFile(false);
       // Clear the file input
       event.target.value = '';
     }
@@ -100,64 +110,24 @@ export default function Library() {
       
       const url = new URL(urlStr);
       
-      // Use our API service to fetch the PDF
-      const pdfBlob = await Promise.race([
-        apiService.proxyPdf(url.toString()),
-        new Promise<Blob>((_, reject) => 
-          setTimeout(() => reject(new Error('URL fetch timeout')), 30000)
-        )
-      ]);
-      
-      // Get the PDF data
-      const arrayBuffer = await pdfBlob.arrayBuffer();
-      const pdfData = new Uint8Array(arrayBuffer);
-      
-      // Validate that this is actually a PDF by checking the header
-      const pdfHeader = pdfData.slice(0, 4);
-      const pdfSignature = String.fromCharCode(...pdfHeader);
-      if (pdfSignature !== '%PDF') {
-        throw new Error('The downloaded file is not a valid PDF. Please check the URL and try again.');
-      }
-      
-      // Generate thumbnail
-      const defaultCover = await generatePdfThumbnail(pdfData);
-
       // Extract filename from URL or use default
       const urlPath = url.pathname;
       const filename = urlPath.split('/').pop() || 'Downloaded PDF';
       const title = filename.replace(/\.pdf$/i, '');
 
-      // Add the book to our context with data
-      addBook({
+      // Create book from URL using the backend API
+      await addBook({
         title,
-        pdfData,
-        defaultCover,
+        pdf_url: urlStr,
+        pdf_source: 'url',
       });
 
       // Clear the URL input and close modal
       setUrlInput("");
       setAddBookModalOpen(false);
     } catch (error) {
-      console.error('Failed to process PDF from URL:', error);
-      
-      // Show user-friendly error message
-      let errorMessage = 'Failed to add PDF from URL.';
-      if (error instanceof Error) {
-        if (error.message.includes('not a valid PDF')) {
-          errorMessage = error.message;
-        } else if (error.message.includes('timeout')) {
-          errorMessage = 'The download timed out. Please check your connection and try again.';
-        } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = 'Unable to access the PDF. Please check the URL or try a different link.';
-        }
-      }
-      
-      // TODO: Replace with proper toast notification
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive"
-      });
+      console.error('Failed to create book from URL:', error);
+      // Error handling is now done in the addBook method
     } finally {
       setIsLoadingUrl(false);
     }
@@ -403,21 +373,41 @@ export default function Library() {
                   onClick={() => handleBookClick(book)}
                 >
                   <div className="aspect-[3/4] bg-muted mb-4 rounded-lg flex items-center justify-center">
-                    {(book.coverUrl || book.defaultCover) ? (
-                      <img 
-                        src={book.coverUrl || book.defaultCover}
-                        alt={book.title}
-                        className="w-full h-full object-cover rounded-lg"
-                      />
-                    ) : (
-                      <div className="text-muted-foreground text-sm">No Cover</div>
-                    )}
+                    {(() => {
+                      console.log('📖 Book cover check for:', book.id, {
+                        title: book.title,
+                        coverUrl: book.coverUrl,
+                        defaultCover: book.defaultCover,
+                        thumbnail_url: book.thumbnail_url,
+                        hasCover: !!(book.coverUrl || book.defaultCover || book.thumbnail_url),
+                        defaultCoverLength: book.defaultCover ? book.defaultCover.length : 0,
+                        isDataUrl: book.defaultCover ? book.defaultCover.startsWith('data:') : false
+                      });
+                      
+                      const coverSrc = book.coverUrl || book.defaultCover || book.thumbnail_url;
+                      
+                      return coverSrc ? (
+                        <img 
+                          src={coverSrc}
+                          alt={book.title}
+                          className="w-full h-full object-cover rounded-lg"
+                          onError={(e) => {
+                            console.error('Image load error for book:', book.id, 'src:', coverSrc);
+                          }}
+                          onLoad={() => {
+                            console.log('Image loaded successfully for book:', book.id);
+                          }}
+                        />
+                      ) : (
+                        <div className="text-muted-foreground text-sm">No Cover</div>
+                      );
+                    })()}
                   </div>
                   
                   <div className="flex-1">
-                    <h3 className="font-medium mb-1 line-clamp-2">{book.title}</h3>
+                    <h3 className="font-medium mb-1 line-clamp-2 text-sm leading-tight">{book.title}</h3>
                     {book.author && (
-                      <p className="text-sm text-muted-foreground mb-2">{book.author}</p>
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{book.author}</p>
                     )}
                     <p className="text-xs text-muted-foreground">
                       Added {new Date(book.uploadDate).toLocaleDateString()}
@@ -458,9 +448,9 @@ export default function Library() {
                   <div className="flex items-center gap-4">
                     <div className="flex-shrink-0">
                       <div className="w-12 h-16 bg-muted rounded-lg flex items-center justify-center">
-                        {(book.coverUrl || book.defaultCover) ? (
+                        {(book.coverUrl || book.defaultCover || book.thumbnail_url) ? (
                           <img 
-                            src={book.coverUrl || book.defaultCover}
+                            src={book.coverUrl || book.defaultCover || book.thumbnail_url}
                             alt={book.title}
                             className="w-full h-full object-cover rounded-lg"
                           />
@@ -473,11 +463,11 @@ export default function Library() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-foreground truncate text-sm">
+                          <h3 className="font-medium text-foreground line-clamp-2 text-sm leading-tight">
                             {book.title}
                           </h3>
                           {book.author && (
-                            <p className="text-xs text-muted-foreground truncate">
+                            <p className="text-xs text-muted-foreground line-clamp-1">
                               by {book.author}
                             </p>
                           )}

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF.js Test</title>
+</head>
+<body>
+    <h1>PDF.js Worker Test</h1>
+    <div id="output"></div>
+    <button onclick="testPdfWorker()">Test PDF Worker</button>
+    <button onclick="testPdfUrl()">Test PDF URL Access</button>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Set worker source
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+        
+        function log(message) {
+            console.log(message);
+            const output = document.getElementById('output');
+            output.innerHTML += '<div>' + message + '</div>';
+        }
+        
+        async function testPdfWorker() {
+            log('🔧 Testing PDF.js worker...');
+            log('Worker source: ' + pdfjsLib.GlobalWorkerOptions.workerSrc);
+            
+            try {
+                // Test worker loading
+                const response = await fetch('/pdf.worker.min.js', { method: 'HEAD' });
+                log('Worker file status: ' + response.status + ' ' + response.statusText);
+                
+                if (response.ok) {
+                    log('✅ PDF worker file is accessible');
+                } else {
+                    log('❌ PDF worker file is NOT accessible');
+                }
+            } catch (error) {
+                log('❌ Error checking worker file: ' + error.message);
+            }
+        }
+        
+        async function testPdfUrl() {
+            log('🔗 Testing PDF URL access...');
+            
+            // Test sample PDF URL from your backend
+            const testUrl = 'https://nmmmnfoahmdvaikcpvcn.supabase.co/storage/v1/object/public/readai-media/pdfs/7a59017e-b2d2-4ca6-b7b8-5f8e6c9b8e61/e7043122-246e-4200-99a0-c47bcdd2cc4a/UUUU_UU_UUU_U_UUU_UU_UUUU.pdf';
+            
+            try {
+                log('Testing URL: ' + testUrl);
+                const response = await fetch(testUrl, { method: 'HEAD' });
+                log('PDF URL status: ' + response.status + ' ' + response.statusText);
+                log('Content-Type: ' + response.headers.get('content-type'));
+                log('Content-Length: ' + response.headers.get('content-length'));
+                
+                if (response.ok) {
+                    log('✅ PDF URL is accessible');
+                    
+                    // Try to load the PDF
+                    log('🔄 Attempting to load PDF with PDF.js...');
+                    const pdf = await pdfjsLib.getDocument(testUrl).promise;
+                    log('✅ PDF loaded successfully! Pages: ' + pdf.numPages);
+                    
+                } else {
+                    log('❌ PDF URL is NOT accessible');
+                }
+            } catch (error) {
+                log('❌ Error testing PDF URL: ' + error.message);
+                console.error('PDF loading error:', error);
+            }
+        }
+        
+        // Auto-run tests
+        window.onload = function() {
+            testPdfWorker();
+        };
+    </script>
+</body>
+</html>

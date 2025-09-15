@@ -13,31 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { ScrollArea } from "./ui/scroll-area";
 import apiService from "../services/apiService";
 
-// Set the worker source for PDF.js (using local file)
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'; // This should match the file in public folder
-
-// Preload the PDF.js worker to ensure it's available
-const preloadPdfWorker = async () => {
-  try {
-    // Test if the worker file is accessible by making a HEAD request
-    const response = await fetch('/pdf.worker.min.js', { method: 'HEAD' });
-    if (!response.ok) {
-      console.error('PDF worker file not found or not accessible');
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error('Error preloading PDF worker:', error);
-    return false;
-  }
-};
-
-// Call the preload function to verify the worker is available
-preloadPdfWorker().then(available => {
-  if (!available) {
-    console.warn('PDF worker may not be available. PDF rendering might be limited.');
-  }
-});
+// Worker is configured globally in main.tsx - no need to set it here
 
 export const ReadingArea = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -55,14 +31,33 @@ export const ReadingArea = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Create Blob URL when book changes
-    if (currentBook?.pdfData) {
-      const blob = new Blob([currentBook.pdfData], { type: 'application/pdf' });
+    // Handle PDF URL from backend or create Blob URL from local data
+    if (currentBook?.pdf_url) {
+      console.log('Loading PDF from URL:', currentBook.pdf_url);
+      
+      // Try to properly encode the URL to handle any special characters
+      let processedUrl = currentBook.pdf_url;
+      try {
+        // Parse and rebuild the URL to ensure proper encoding
+        const url = new URL(currentBook.pdf_url);
+        processedUrl = url.toString();
+        console.log('Processed URL:', processedUrl);
+      } catch (error) {
+        console.warn('URL parsing failed, using original:', error);
+      }
+      
+      setPdfUrl(processedUrl);
+    } else if (currentBook?.pdfData) {
+      console.log('Creating Blob URL from PDF data');
+      const blob = new Blob([new Uint8Array(currentBook.pdfData)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       setPdfUrl(url);
       return () => {
         URL.revokeObjectURL(url);
       };
+    } else {
+      console.log('No PDF URL or data available');
+      setPdfUrl(null);
     }
   }, [currentBook]);
 
@@ -88,6 +83,21 @@ export const ReadingArea = () => {
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     updateContainerDimensions(); // Update dimensions after document loads
+    console.log('✅ PDF Document loaded successfully:', numPages, 'pages');
+  };
+
+  const onDocumentLoadError = (error: Error) => {
+    console.error('❌ PDF Document load error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    });
+    toast({
+      title: "PDF Load Error",
+      description: `Failed to load PDF: ${error.message}`,
+      variant: "destructive"
+    });
   };
 
   // Handle window resize for PDF page width
@@ -349,21 +359,51 @@ export const ReadingArea = () => {
         <Card className="h-[calc(100%-70px)] glass bg-card shadow-lg p-3 sm:p-4 lg:p-8 animate-fade-in">
           <ScrollArea className="h-full w-full">
             <div ref={containerRef} className="flex justify-center p-4">
+              {!currentBook && (
+                <div className="flex items-center justify-center h-full text-center">
+                  <div className="py-8">
+                    <p className="text-muted-foreground mb-2">No book selected</p>
+                    <Button onClick={() => navigate('/library')} variant="outline">
+                      Go to Library
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {currentBook && !pdfUrl && (
+                <div className="flex items-center justify-center h-full text-center">
+                  <div className="py-8">
+                    <p className="text-red-500 mb-2">PDF not available</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      PDF URL: {currentBook.pdf_url || 'Not provided'}<br/>
+                      Local Data: {currentBook.pdfData ? 'Available' : 'Not available'}
+                    </p>
+                    <Button onClick={() => navigate('/library')} variant="outline">
+                      Back to Library
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
               {pdfUrl && (
                 <Document
                   file={pdfUrl}
                   onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
                   loading={
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center py-4">
                         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-2"></div>
                         <p>Loading PDF...</p>
+                        <p className="text-xs text-muted-foreground mt-2">URL: {pdfUrl}</p>
                       </div>
                     </div>
                   }
                   error={
                     <div className="text-center py-4 text-red-500">
                       <p>Error loading PDF. Please try again.</p>
+                      <p className="text-xs text-muted-foreground mt-2">URL: {pdfUrl}</p>
+                      <p className="text-xs text-red-400 mt-1">Check console for detailed error information</p>
                     </div>
                   }
                 >

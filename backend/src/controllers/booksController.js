@@ -158,12 +158,29 @@ const uploadPDF = async (req, res) => {
       });
     }
 
-    // Generate unique file path
+    // Generate unique file path with sanitized filename
     const bookId = uuidv4();
-    const fileName = `${req.file.originalname}`;
+    
+    // Sanitize filename by removing non-ASCII characters and special chars
+    const sanitizeFilename = (filename) => {
+      return filename
+        .normalize('NFD')                           // Normalize Unicode
+        .replace(/[\u0300-\u036f]/g, '')           // Remove diacritics
+        .replace(/[^\x00-\x7F]/g, 'U')             // Replace non-ASCII with 'U'
+        .replace(/[^a-zA-Z0-9.\-_]/g, '_')         // Replace special chars with underscore
+        .replace(/_{2,}/g, '_')                    // Replace multiple underscores with single
+        .replace(/^_+|_+$/g, '');                  // Remove leading/trailing underscores
+    };
+    
+    const originalFileName = req.file.originalname;
+    const sanitizedFileName = sanitizeFilename(originalFileName);
+    const fileName = sanitizedFileName || `book_${bookId}.pdf`; // Fallback if sanitization results in empty string
     const filePath = `pdfs/${userId}/${bookId}/${fileName}`;
 
+    logger.info(`Uploading file: ${originalFileName} -> ${fileName}`, { userId, bookId });
+
     // Upload PDF to Supabase Storage
+    logger.info(`Starting upload to bucket: readai-media, path: ${filePath}`);
     const uploadResult = await supabaseService.uploadFile(
       'readai-media',
       filePath,
@@ -173,9 +190,19 @@ const uploadPDF = async (req, res) => {
         upsert: false
       }
     );
+    
+    logger.info(`Upload result:`, uploadResult);
 
     // Get public URL
     const pdfUrl = supabaseService.getFileUrl('readai-media', filePath);
+    
+    logger.info(`Generated PDF URL: ${pdfUrl}`, { userId, bookId, filePath });
+
+    // Verify the URL is valid
+    if (!pdfUrl || pdfUrl === '{}' || typeof pdfUrl !== 'string') {
+      logger.error(`Invalid PDF URL generated: ${pdfUrl}`, { userId, bookId, filePath });
+      throw new Error('Failed to generate valid PDF URL');
+    }
 
     // Create book record
     const book = await supabaseService.createBook(userId, {

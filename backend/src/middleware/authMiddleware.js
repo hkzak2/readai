@@ -18,31 +18,29 @@ const authenticateUser = async (req, res, next) => {
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    // Verify the JWT token
-    const decoded = jwt.verify(token, config.supabase.serviceKey);
+    // Use Supabase to verify the JWT token
+    const { data: { user }, error } = await supabaseService.supabase.auth.getUser(token);
     
-    // Extract user ID from token
-    const userId = decoded.sub;
-    
-    if (!userId) {
+    if (error || !user) {
+      logger.warn('Token verification failed:', { error: error?.message });
       return res.status(401).json({ 
-        error: 'Invalid token: missing user ID' 
+        error: 'Invalid token' 
       });
     }
 
     // Optionally fetch user profile to ensure user exists
-    const userProfile = await supabaseService.getUserProfile(userId);
+    const userProfile = await supabaseService.getUserProfile(user.id);
     
     // Attach user info to request object
     req.user = {
-      id: userId,
-      email: decoded.email,
+      id: user.id,
+      email: user.email,
       role: userProfile?.role || 'user',
       profile: userProfile
     };
 
-    logger.info(`Authenticated user: ${userId}`, { 
-      email: decoded.email,
+    logger.info(`Authenticated user: ${user.id}`, { 
+      email: user.email,
       role: req.user.role 
     });
 

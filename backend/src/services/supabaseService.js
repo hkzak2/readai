@@ -20,6 +20,21 @@ class SupabaseService {
       }
     );
 
+    // Create admin client that bypasses RLS
+    this.adminClient = createClient(
+      config.supabase.url,
+      config.supabase.serviceKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        },
+        db: {
+          schema: 'public'
+        }
+      }
+    );
+
     logger.info('Supabase service initialized successfully');
   }
 
@@ -61,7 +76,8 @@ class SupabaseService {
   // Book management
   async createBook(userId, bookData) {
     try {
-      const { data, error } = await this.supabase
+      // Use admin client to bypass RLS for service operations
+      const { data, error } = await this.adminClient
         .from('books')
         .insert({
           user_id: userId,
@@ -96,10 +112,13 @@ class SupabaseService {
             title,
             author,
             description,
+            pdf_url,
+            pdf_source,
             thumbnail_url,
             total_pages,
             processing_status,
-            created_at
+            created_at,
+            updated_at
           )
         `)
         .eq('user_id', userId)
@@ -115,7 +134,7 @@ class SupabaseService {
 
   async addBookToLibrary(userId, bookId, personalData = {}) {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await this.adminClient
         .from('user_books')
         .insert({
           user_id: userId,
@@ -248,12 +267,26 @@ class SupabaseService {
     }
   }
 
-  async getFileUrl(bucket, filePath) {
+  getFileUrl(bucket, filePath) {
     try {
-      const { data } = this.supabase.storage
+      logger.info(`Getting URL for bucket: ${bucket}, path: ${filePath}`);
+      
+      const result = this.supabase.storage
         .from(bucket)
         .getPublicUrl(filePath);
+      
+      logger.info(`getPublicUrl result:`, result);
+      
+      const { data } = result;
+      
+      logger.info(`Data from getPublicUrl:`, data);
+      
+      if (!data || !data.publicUrl) {
+        logger.error(`No public URL in result data:`, { bucket, filePath, data });
+        throw new Error('Failed to get public URL from Supabase');
+      }
 
+      logger.info(`Generated file URL: ${data.publicUrl}`, { bucket, filePath });
       return data.publicUrl;
     } catch (error) {
       logger.error('Error getting file URL:', error);

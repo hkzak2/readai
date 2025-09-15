@@ -1,0 +1,23 @@
+# Development Dockerfile for backend with hot reload
+FROM node:20-alpine
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm install
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Expose port
+EXPOSE 3001
+
+# Default command (can be overridden in docker-compose)
+CMD ["npm", "run", "dev"]

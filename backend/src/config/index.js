@@ -25,6 +25,8 @@ const config = {
         'http://127.0.0.1:5173',  // Vite IP access
         'http://127.0.0.1:5174',  // Vite IP alternate
         'http://localhost:4173',  // Vite preview port
+        'http://localhost:8080',  // Docker frontend port
+        'http://127.0.0.1:8080',  // Docker frontend IP access
       ],
   
   // Request limits

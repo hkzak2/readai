@@ -6,6 +6,37 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 /**
+ * Get authentication headers from localStorage
+ */
+const getAuthHeaders = () => {
+  const session = localStorage.getItem('readai_session');
+  if (session) {
+    try {
+      const parsedSession = JSON.parse(session);
+      console.log('Session check:', {
+        hasToken: !!parsedSession.access_token,
+        expiresAt: parsedSession.expires_at,
+        currentTime: Date.now() / 1000,
+        isExpired: parsedSession.expires_at <= Date.now() / 1000
+      });
+      
+      if (parsedSession.access_token && parsedSession.expires_at > Date.now() / 1000) {
+        return {
+          'Authorization': `Bearer ${parsedSession.access_token}`
+        };
+      } else {
+        console.warn('Session invalid or expired');
+      }
+    } catch (error) {
+      console.error('Error parsing session:', error);
+    }
+  } else {
+    console.warn('No session found in localStorage');
+  }
+  return {};
+};
+
+/**
  * Service for interacting with the ReadAI backend
  */
 const apiService = {
@@ -21,7 +52,8 @@ const apiService = {
         mode: 'cors',
         headers: { 
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          ...getAuthHeaders()
         },
         body: JSON.stringify({ image: imageBase64 }),
       });
@@ -50,7 +82,8 @@ const apiService = {
         mode: 'cors',
         headers: { 
           'Content-Type': 'application/json',
-          'Accept': 'audio/wav'
+          'Accept': 'audio/wav',
+          ...getAuthHeaders()
         },
         body: JSON.stringify({ text }),
       });
@@ -81,7 +114,8 @@ const apiService = {
         method: 'GET',
         mode: 'cors',
         headers: {
-          'Accept': 'application/pdf'
+          'Accept': 'application/pdf',
+          ...getAuthHeaders()
         }
       });
 
@@ -95,6 +129,124 @@ const apiService = {
       console.error('Error in PDF proxy API call:', error);
       throw error;
     }
+  },
+
+  /**
+   * Get user's book library from backend
+   * @returns {Promise<Object>} - User's books
+   */
+  async getUserLibrary() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/books/library`, {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json',
+          ...getAuthHeaders()
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch library");
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching user library:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a new book in user's library
+   * @param {Object} bookData - Book information
+   * @returns {Promise<Object>} - Created book
+   */
+  async createBook(bookData: {
+    title: string;
+    author?: string;
+    description?: string;
+    pdf_url?: string;
+    pdf_source?: string;
+    thumbnail_url?: string;
+    total_pages?: number;
+  }) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/books`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify(bookData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create book");
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating book:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Upload a PDF file
+   * @param {File} file - PDF file to upload
+   * @param {Object} metadata - Book metadata
+   * @returns {Promise<Object>} - Upload result
+   */
+  async uploadPDF(file: File, metadata: { title: string; author?: string; description?: string }) {
+    try {
+      const formData = new FormData();
+      formData.append('pdf', file);
+      formData.append('title', metadata.title);
+      if (metadata.author) formData.append('author', metadata.author);
+      if (metadata.description) formData.append('description', metadata.description);
+
+      const response = await fetch(`${API_BASE_URL}/books/upload`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          ...getAuthHeaders()
+          // Don't set Content-Type for FormData, let browser set it with boundary
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to upload PDF");
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error uploading PDF:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create book from URL
+   * @param {Object} bookData - Book data including URL
+   * @returns {Promise<Object>} - Created book
+   */
+  async createBookFromUrl(bookData: {
+    title: string;
+    author?: string;
+    description?: string;
+    pdf_url: string;
+  }) {
+    return this.createBook({
+      ...bookData,
+      pdf_source: 'url'
+    });
   },
 
   /**
