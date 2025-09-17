@@ -1,6 +1,7 @@
 const supabaseService = require('../services/supabaseService');
 const logger = require('../utils/logger');
 const { v4: uuidv4 } = require('uuid');
+const ThumbnailService = require('../services/thumbnailService');
 
 /**
  * Get user's book library
@@ -29,7 +30,7 @@ const getUserLibrary = async (req, res) => {
 const createBook = async (req, res) => {
   try {
     const userId = req.user.id;
-    const {
+    let {
       title,
       author,
       description,
@@ -48,8 +49,8 @@ const createBook = async (req, res) => {
     // Create the book
     const book = await supabaseService.createBook(userId, {
       title,
-      author,
-      description,
+      author: typeof author === 'string' && author.trim() === '' ? null : author,
+      description: typeof description === 'string' && description.trim() === '' ? null : description,
       pdf_url,
       pdf_source,
       thumbnail_url,
@@ -64,6 +65,21 @@ const createBook = async (req, res) => {
       book,
       userBook
     });
+
+    // Generate thumbnail asynchronously if we have a pdf_url but no thumbnail yet
+    if (book && book.pdf_url && !book.thumbnail_url) {
+      (async () => {
+        try {
+          const url = await ThumbnailService.generateFromUrl(book.pdf_url, { userId, bookId: book.id });
+          await supabaseService.updateBook(book.id, { thumbnail_url: url, processing_status: 'completed' });
+          logger.info('Thumbnail generated and saved for book', { bookId: book.id });
+        } catch (err) {
+          logger.error('Async thumbnail generation failed (createBook)', { error: err });
+          // Do not throw; this is async and non-blocking
+          await supabaseService.updateBook(book.id, { processing_status: 'completed' });
+        }
+      })();
+    }
   } catch (error) {
     logger.error('Error creating book:', error);
     res.status(500).json({
@@ -150,7 +166,7 @@ const uploadPDF = async (req, res) => {
       });
     }
 
-    const { title, author, description } = req.body;
+  let { title, author, description } = req.body;
     
     if (!title) {
       return res.status(400).json({
@@ -224,6 +240,21 @@ const uploadPDF = async (req, res) => {
       userBook,
       upload: uploadResult
     });
+
+    // Generate thumbnail asynchronously from uploaded buffer
+    if (req.file && req.file.buffer && book) {
+      (async () => {
+        try {
+          const url = await ThumbnailService.generateFromBuffer(req.file.buffer, { userId, bookId: book.id });
+          await supabaseService.updateBook(book.id, { thumbnail_url: url, processing_status: 'completed' });
+          logger.info('Thumbnail generated and saved for uploaded book', { bookId: book.id });
+        } catch (err) {
+          logger.error('Async thumbnail generation failed (uploadPDF)', { error: err });
+          // Mark processing as completed even if thumbnail fails
+          await supabaseService.updateBook(book.id, { processing_status: 'completed' });
+        }
+      })();
+    }
   } catch (error) {
     logger.error('Error uploading PDF:', error);
     res.status(500).json({
@@ -287,11 +318,116 @@ const getPublicBooks = async (req, res) => {
   }
 };
 
+
+/**
+ * Update book details (title, author, cover image)
+ */
+const updateBookDetails = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { bookId } = req.params;
+    const { title, author, description } = req.body;
+    const coverFile = req.file;
+
+    // Fetch book and check ownership
+    const book = await supabaseService.getBookById(bookId);
+    if (!book) return res.status(404).json({ error: 'Book not found' });
+    if (book.user_id !== userId) return res.status(403).json({ error: 'Only the owner can edit this book' });
+
+    // Validate fields
+    const updates = {};
+    if (title !== undefined) {
+      if (typeof title !== 'string' || title.length < 1 || title.length > 200) {
+        return res.status(400).json({ error: 'Title must be 1-200 characters' });
+      }
+      updates.title = title;
+    }
+    if (author !== undefined) {
+      if (typeof author !== 'string' || author.length > 100) {
+        return res.status(400).json({ error: 'Author must be <= 100 characters' });
+      }
+      // Normalize empty string to null to clear author
+      updates.author = author.trim() === '' ? null : author;
+    }
+    if (description !== undefined) {
+      if (typeof description !== 'string' || description.length > 500) {
+        return res.status(400).json({ error: 'Description must be <= 500 characters' });
+      }
+      updates.description = description.trim() === '' ? null : description;
+    }
+
+    // Handle cover upload
+    if (coverFile) {
+      if (!['image/png', 'image/jpeg'].includes(coverFile.mimetype)) {
+        return res.status(400).json({ error: 'Cover must be PNG or JPG' });
+      }
+      if (coverFile.size > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Cover image too large (max 5MB)' });
+      }
+      const ext = coverFile.mimetype === 'image/png' ? 'png' : 'jpg';
+      const coverPath = `thumbnails/${userId}/${bookId}/cover.${ext}`;
+      await supabaseService.uploadFile('readai-media', coverPath, coverFile.buffer, {
+        contentType: coverFile.mimetype,
+        upsert: true
+      });
+      const coverUrl = supabaseService.getFileUrl('readai-media', coverPath);
+      updates.thumbnail_url = coverUrl;
+    }
+
+    // Update book
+    const updatedBook = await supabaseService.updateBook(bookId, updates);
+    res.json({ success: true, book: updatedBook });
+  } catch (error) {
+    logger.error('Error updating book details:', error);
+    res.status(500).json({ error: 'Failed to update book details' });
+  }
+};
+
+/**
+ * Delete book or remove from user's library
+ */
+const deleteBookOrRemoveFromLibrary = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { bookId } = req.params;
+
+    // Remove user_books row for this user/book
+    const { data: userBook, error: userBookErr } = await supabaseService.adminClient
+      .from('user_books')
+      .delete()
+      .eq('user_id', userId)
+      .eq('book_id', bookId);
+    if (userBookErr) throw userBookErr;
+
+    // Check if book still has any user_books refs
+    const refCount = await supabaseService.countUserBookRefs(bookId);
+
+    let fullyDeleted = false;
+    if (refCount === 0) {
+      // Only owner can fully delete
+      const book = await supabaseService.getBookById(bookId);
+      if (book && book.user_id === userId) {
+        await supabaseService.deleteBook(bookId);
+        fullyDeleted = true;
+        // Optional: clean up storage files (PDF, thumbnail)
+        // Not implemented here for brevity
+      }
+    }
+
+    res.json({ success: true, removedFromLibrary: true, fullyDeleted });
+  } catch (error) {
+    logger.error('Error deleting/removing book:', error);
+    res.status(500).json({ error: 'Failed to delete or remove book' });
+  }
+};
+
 module.exports = {
   getUserLibrary,
   createBook,
   addToLibrary,
   updateProgress,
   uploadPDF,
-  getPublicBooks
+  getPublicBooks,
+  updateBookDetails,
+  deleteBookOrRemoveFromLibrary
 };

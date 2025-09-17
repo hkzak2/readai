@@ -80,7 +80,6 @@ export const ChatWindow = () => {
       });
       
     } catch (error) {
-      console.error("Error uploading PDF:", error);
       toast({
         title: "Upload Failed",
         description: error instanceof Error ? error.message : "Failed to upload PDF",
@@ -166,8 +165,7 @@ export const ChatWindow = () => {
         }
       ]);
 
-    } catch (error) {
-      console.error("Error sending message:", error);
+  } catch (error) {
       
       // Add error message to chat
       setMessages(prevMessages => [
@@ -203,7 +201,7 @@ export const ChatWindow = () => {
         // Attempt to delete the cache
         fetch(`http://localhost:8000/api/cache/${activeCache.id}`, {
           method: "DELETE"
-        }).catch(err => console.error("Failed to clean up cache:", err));
+  }).catch(() => { /* ignore cleanup failure */ });
       }
     };
   }, [activeCache]);

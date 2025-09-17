@@ -50,32 +50,19 @@ const PDFTestComponent: React.FC = () => {
       
     } catch (error) {
       setStatus(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      console.error('PDF test error:', error);
     }
   };
 
   const testBooksContextData = () => {
     setBooksContextStatus('Checking BooksContext data...');
     
-    // Check if books data is available from BooksContext debugging
-    const booksState = (window as any).booksState;
+  // BooksContext debugging removed; cannot access window.booksState
+  const booksState = null;
     
     if (booksState && Array.isArray(booksState)) {
       setBooksContextStatus(`Found ${booksState.length} books in state`);
       
-      console.log('=== BOOKS STATE ANALYSIS ===');
-      booksState.forEach((book: any, index: number) => {
-        console.log(`Book ${index + 1}:`, {
-          id: book.id,
-          title: book.title,
-          pdf_url: book.pdf_url,
-          thumbnail_url: book.thumbnail_url,
-          defaultCover: book.defaultCover,
-          coverUrl: book.coverUrl,
-          hasCover: !!(book.thumbnail_url || book.defaultCover || book.coverUrl)
-        });
-      });
-      console.log('=== END ANALYSIS ===');
+  // Detailed console analysis removed
       
       const booksWithCovers = booksState.filter((book: any) => 
         book.thumbnail_url || book.defaultCover || book.coverUrl

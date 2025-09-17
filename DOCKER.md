@@ -6,6 +6,7 @@ This directory contains Docker configuration for running ReadAI with both backen
 
 - Docker and Docker Compose installed
 - `.env` files configured in backend and frontend directories
+- For server-side PDF thumbnails, backend image includes Poppler (pdftoppm)
 
 ## Quick Start
 
@@ -22,12 +23,12 @@ docker-compose down
 ```
 
 ### Development Mode (with hot reload)
+
 ```bash
 # Start development environment
 docker-compose -f docker-compose.dev.yml up --build
 
 # Run in background
-docker-compose -f docker-compose.dev.yml up -d --build
 
 # Stop development services
 docker-compose -f docker-compose.dev.yml down
@@ -113,6 +114,12 @@ For production deployment, consider:
 4. **Health monitoring**
 5. **Log aggregation**
 6. **Backup strategies**
+
+## Notes on PDF Thumbnails
+
+- The backend generates first-page cover thumbnails using Poppler's `pdftoppm` tool.
+- Both dev and prod backend images install `poppler-utils` so no extra setup is required.
+- Thumbnails are uploaded to Supabase Storage and saved as `books.thumbnail_url`.
 
 ## Troubleshooting
 

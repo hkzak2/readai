@@ -92,7 +92,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           refreshTokenInternal(parsedSession.refresh_token)
         }
       } catch (error) {
-        console.error('Error loading saved session:', error)
         clearSession()
       }
     }
@@ -142,7 +141,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         saveSession(userData.user, newSession)
       }
     } catch (error) {
-      console.error('Token refresh failed:', error)
       clearSession()
     }
   }
@@ -210,7 +208,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         })
       }
     } catch (error) {
-      console.error('Logout API call failed:', error)
+      // ignore logout error
     } finally {
       clearSession()
     }

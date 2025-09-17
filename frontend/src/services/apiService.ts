@@ -13,25 +13,19 @@ const getAuthHeaders = () => {
   if (session) {
     try {
       const parsedSession = JSON.parse(session);
-      console.log('Session check:', {
-        hasToken: !!parsedSession.access_token,
-        expiresAt: parsedSession.expires_at,
-        currentTime: Date.now() / 1000,
-        isExpired: parsedSession.expires_at <= Date.now() / 1000
-      });
       
       if (parsedSession.access_token && parsedSession.expires_at > Date.now() / 1000) {
         return {
           'Authorization': `Bearer ${parsedSession.access_token}`
         };
       } else {
-        console.warn('Session invalid or expired');
+        // Session invalid or expired
       }
     } catch (error) {
-      console.error('Error parsing session:', error);
+      // Ignore parse errors
     }
   } else {
-    console.warn('No session found in localStorage');
+    // No session found
   }
   return {};
 };
@@ -40,6 +34,63 @@ const getAuthHeaders = () => {
  * Service for interacting with the ReadAI backend
  */
 const apiService = {
+  /**
+   * Update book details (title, author, description, cover)
+   * @param {string} bookId
+   * @param {Object} updates - { title?, author?, description?, coverFile? }
+   * @returns {Promise<Object>} - Updated book
+   */
+  async updateBook(bookId: string, updates: { title?: string; author?: string; description?: string; coverFile?: File }) {
+    try {
+      const formData = new FormData();
+      if ('title' in updates && updates.title !== undefined) formData.append('title', updates.title);
+      if ('author' in updates && updates.author !== undefined) formData.append('author', updates.author);
+      if ('description' in updates && updates.description !== undefined) formData.append('description', updates.description);
+      if (updates.coverFile) formData.append('cover', updates.coverFile);
+
+      const response = await fetch(`${API_BASE_URL}/books/${bookId}`, {
+        method: 'PATCH',
+        mode: 'cors',
+        headers: {
+          ...getAuthHeaders()
+          // Do not set Content-Type for FormData
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update book');
+      }
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Delete book or remove from user's library
+   * @param {string} bookId
+   * @returns {Promise<Object>} - { success, removedFromLibrary, fullyDeleted }
+   */
+  async deleteBook(bookId: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/books/${bookId}`, {
+        method: 'DELETE',
+        mode: 'cors',
+        headers: {
+          ...getAuthHeaders()
+        }
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete book');
+      }
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  },
   /**
    * Convert an image to text using AI
    * @param {string} imageBase64 - Base64 encoded image data
@@ -65,7 +116,7 @@ const apiService = {
 
       return await response.json();
     } catch (error) {
-      console.error('Error in image-to-text API call:', error);
+  // Surface error to caller
       throw error;
     }
   },
@@ -98,7 +149,7 @@ const apiService = {
 
       return await response.blob();
     } catch (error) {
-      console.error('Error in text-to-audio API call:', error);
+  // Surface error to caller
       throw error;
     }
   },
@@ -126,7 +177,7 @@ const apiService = {
 
       return await response.blob();
     } catch (error) {
-      console.error('Error in PDF proxy API call:', error);
+  // Surface error to caller
       throw error;
     }
   },
@@ -153,7 +204,7 @@ const apiService = {
 
       return await response.json();
     } catch (error) {
-      console.error('Error fetching user library:', error);
+  // Surface error to caller
       throw error;
     }
   },
@@ -191,7 +242,7 @@ const apiService = {
 
       return await response.json();
     } catch (error) {
-      console.error('Error creating book:', error);
+  // Surface error to caller
       throw error;
     }
   },
@@ -227,7 +278,7 @@ const apiService = {
 
       return await response.json();
     } catch (error) {
-      console.error('Error uploading PDF:', error);
+  // Surface error to caller
       throw error;
     }
   },
@@ -264,16 +315,11 @@ const apiService = {
         }
       });
       
-      if (!response.ok) {
-        console.warn('Health check failed with status:', response.status);
-        return false;
-      }
+  if (!response.ok) return false;
       
       const data = await response.json();
-      console.log('Health check succeeded:', data);
       return true;
     } catch (error) {
-      console.error('Error checking backend health:', error);
       return false;
     }
   }

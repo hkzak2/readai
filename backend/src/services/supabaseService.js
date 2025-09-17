@@ -3,6 +3,49 @@ const config = require('../config');
 const logger = require('../utils/logger');
 
 class SupabaseService {
+  async getBookById(bookId) {
+    try {
+      const { data, error } = await this.adminClient
+        .from('books')
+        .select('*')
+        .eq('id', bookId)
+        .single();
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error fetching book by id:', error);
+      throw error;
+    }
+  }
+
+  async countUserBookRefs(bookId) {
+    try {
+      const { count, error } = await this.adminClient
+        .from('user_books')
+        .select('id', { count: 'exact', head: true })
+        .eq('book_id', bookId);
+      if (error) throw error;
+      return count || 0;
+    } catch (error) {
+      logger.error('Error counting user_books refs:', error);
+      throw error;
+    }
+  }
+
+  async deleteBook(bookId) {
+    try {
+      const { data, error } = await this.adminClient
+        .from('books')
+        .delete()
+        .eq('id', bookId)
+        .single();
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error deleting book:', error);
+      throw error;
+    }
+  }
   constructor() {
     if (!config.supabase.url || !config.supabase.serviceKey) {
       throw new Error('Supabase configuration is missing. Please check your environment variables.');
@@ -128,6 +171,23 @@ class SupabaseService {
       return data;
     } catch (error) {
       logger.error('Error fetching user books:', error);
+      throw error;
+    }
+  }
+
+  async updateBook(bookId, updates) {
+    try {
+      const { data, error } = await this.adminClient
+        .from('books')
+        .update(updates)
+        .eq('id', bookId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error updating book:', error);
       throw error;
     }
   }

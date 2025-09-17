@@ -9,9 +9,8 @@ import { Upload, Trash2, Pencil, Link, Plus, FileText, Search, Grid, List, SortA
 import { useBooks, Book } from "@/contexts/BooksContext";
 import { useNavigate } from "react-router-dom";
 import { EditBookModal } from "@/components/EditBookModal";
+import { Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent, DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle } from "@/components/ui/dialog";
 import { useState, useCallback, useEffect } from "react";
-import { generatePdfThumbnail } from "@/lib/pdf-utils";
-import apiService from "@/services/apiService";
 import { toast } from "@/hooks/use-toast";
 import { ContentLayout } from "@/components/layouts/ContentLayout";
 
@@ -19,23 +18,10 @@ export default function Library() {
   const { books, addBook, removeBook, setCurrentBook, updateBook, uploadPDF, loading, error } = useBooks();
   const navigate = useNavigate();
   
-  // DEBUG: Log books state whenever it changes
-  useEffect(() => {
-    console.log('🔍 LIBRARY DEBUG - Books state changed:', {
-      booksCount: books.length,
-      books: books.map(book => ({
-        id: book.id,
-        title: book.title,
-        pdf_url: book.pdf_url,
-        defaultCover: book.defaultCover ? `${book.defaultCover.substring(0, 50)}...` : null,
-        coverUrl: book.coverUrl,
-        thumbnail_url: book.thumbnail_url,
-        hasCover: !!(book.defaultCover || book.coverUrl || book.thumbnail_url)
-      }))
-    });
-  }, [books]);
+  // Remove verbose state logs to keep console clean
   
   const [editingBook, setEditingBook] = useState<Book | null>(null);
+  const [confirmDeleteBook, setConfirmDeleteBook] = useState<Book | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
@@ -75,7 +61,6 @@ export default function Library() {
       // Close modal on successful upload
       setAddBookModalOpen(false);
     } catch (error) {
-      console.error('Failed to upload PDF:', error);
       // Error handling is now done in the uploadPDF method
     } finally {
       setIsLoadingFile(false);
@@ -104,7 +89,7 @@ export default function Library() {
         
         if (fileId) {
           urlStr = `https://drive.google.com/uc?export=download&id=${fileId}`;
-          console.log('Converted Google Drive URL to direct download:', urlStr);
+          // Converted Google Drive URL to direct download
         }
       }
       
@@ -126,15 +111,15 @@ export default function Library() {
       setUrlInput("");
       setAddBookModalOpen(false);
     } catch (error) {
-      console.error('Failed to create book from URL:', error);
+  // Error handled in addBook method
       // Error handling is now done in the addBook method
     } finally {
       setIsLoadingUrl(false);
     }
   };
 
-  const handleEditSave = (bookId: string, updates: Partial<Book>) => {
-    updateBook(bookId, updates);
+  const handleEditSave = async (bookId: string, updates: Partial<Book> & { coverFile?: File }) => {
+    await updateBook(bookId, updates);
     setEditingBook(null);
   };
 
@@ -374,29 +359,12 @@ export default function Library() {
                 >
                   <div className="aspect-[3/4] bg-muted mb-4 rounded-lg flex items-center justify-center">
                     {(() => {
-                      console.log('📖 Book cover check for:', book.id, {
-                        title: book.title,
-                        coverUrl: book.coverUrl,
-                        defaultCover: book.defaultCover,
-                        thumbnail_url: book.thumbnail_url,
-                        hasCover: !!(book.coverUrl || book.defaultCover || book.thumbnail_url),
-                        defaultCoverLength: book.defaultCover ? book.defaultCover.length : 0,
-                        isDataUrl: book.defaultCover ? book.defaultCover.startsWith('data:') : false
-                      });
-                      
-                      const coverSrc = book.coverUrl || book.defaultCover || book.thumbnail_url;
-                      
+                      const coverSrc = book.thumbnail_url || book.coverUrl || book.defaultCover;
                       return coverSrc ? (
                         <img 
                           src={coverSrc}
                           alt={book.title}
                           className="w-full h-full object-cover rounded-lg"
-                          onError={(e) => {
-                            console.error('Image load error for book:', book.id, 'src:', coverSrc);
-                          }}
-                          onLoad={() => {
-                            console.log('Image loaded successfully for book:', book.id);
-                          }}
                         />
                       ) : (
                         <div className="text-muted-foreground text-sm">No Cover</div>
@@ -423,6 +391,7 @@ export default function Library() {
                         e.stopPropagation();
                         setEditingBook(book);
                       }}
+                      disabled={loading}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -432,8 +401,9 @@ export default function Library() {
                       className="h-8 w-8"
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeBook(book.id);
+                        setConfirmDeleteBook(book);
                       }}
+                      disabled={loading}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -450,7 +420,7 @@ export default function Library() {
                       <div className="w-12 h-16 bg-muted rounded-lg flex items-center justify-center">
                         {(book.coverUrl || book.defaultCover || book.thumbnail_url) ? (
                           <img 
-                            src={book.coverUrl || book.defaultCover || book.thumbnail_url}
+                            src={book.thumbnail_url || book.coverUrl || book.defaultCover}
                             alt={book.title}
                             className="w-full h-full object-cover rounded-lg"
                           />
@@ -546,6 +516,31 @@ export default function Library() {
             onClose={() => setEditingBook(null)}
             onSave={(updates) => handleEditSave(editingBook.id, updates)}
           />
+        )}
+
+        {/* Delete confirmation dialog */}
+        {confirmDeleteBook && (
+          <ConfirmDialog open={true} onOpenChange={() => setConfirmDeleteBook(null)}>
+            <ConfirmDialogContent className="sm:max-w-md">
+              <ConfirmDialogHeader>
+                <ConfirmDialogTitle>Delete Book</ConfirmDialogTitle>
+              </ConfirmDialogHeader>
+              <div className="mb-4">Are you sure you want to remove <span className="font-semibold">{confirmDeleteBook.title}</span> from your library?</div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setConfirmDeleteBook(null)} disabled={loading}>Cancel</Button>
+                <Button
+                  variant="destructive"
+                  onClick={async () => {
+                    await removeBook(confirmDeleteBook.id);
+                    setConfirmDeleteBook(null);
+                  }}
+                  disabled={loading}
+                >
+                  Delete
+                </Button>
+              </div>
+            </ConfirmDialogContent>
+          </ConfirmDialog>
         )}
 
         {/* Add Book Modal */}

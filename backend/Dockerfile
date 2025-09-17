@@ -4,6 +4,9 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
+# Install required tools (poppler for PDF thumbnailing, curl for healthcheck)
+RUN apk add --no-cache poppler-utils curl
+
 # Copy package files
 COPY package*.json ./
 

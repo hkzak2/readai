@@ -64,24 +64,18 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiService.getUserLibrary();
-      console.log('Library API response:', response); // Debug log
+  const response = await apiService.getUserLibrary();
       
       if (response.success && response.books) {
-        console.log('Raw API books data:', response.books);
-        
         // Transform backend book data to match our interface
         const transformedBooks: Book[] = response.books
           .filter((userBook: any) => userBook && userBook.books) // Filter out invalid entries
           .map((userBook: any) => {
-            console.log('Processing userBook:', userBook);
-            console.log('Nested books object:', userBook.books);
-            
             return {
               id: userBook.books.id, // Use the actual book ID from nested books object
-              title: userBook.books.title || 'Untitled',
-              author: userBook.books.author || undefined,
-              description: userBook.books.description || undefined,
+              title: userBook.books.title ?? 'Untitled',
+              author: userBook.books.author ?? undefined,
+              description: userBook.books.description ?? undefined,
               uploadDate: new Date(userBook.books.created_at || Date.now()),
               pdf_url: userBook.books.pdf_url || undefined,
               pdf_source: userBook.books.pdf_source || 'upload',
@@ -95,29 +89,9 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
               updated_at: userBook.books.updated_at || undefined,
             };
           });
-        console.log('Transformed books:', transformedBooks); // Debug log
         setBooks(transformedBooks);
         
-        // Add to window for debugging
-        (window as any).booksState = transformedBooks;
-        console.log('📚 Books state available at window.booksState');
-        (window as any).debugBooks = () => {
-          console.log('=== MANUAL DEBUG: BOOKS STATE ===');
-          console.log('Total books:', transformedBooks.length);
-          transformedBooks.forEach((book, i) => {
-            console.log(`Book ${i + 1}: ${book.title}`, {
-              id: book.id,
-              coverUrl: book.coverUrl,
-              defaultCover: book.defaultCover ? `${book.defaultCover.substring(0, 50)}...` : null,
-              thumbnail_url: book.thumbnail_url,
-              pdf_url: book.pdf_url,
-              hasCover: !!(book.coverUrl || book.defaultCover || book.thumbnail_url)
-            });
-          });
-          console.log('=== END MANUAL DEBUG ===');
-        };
       } else {
-        console.warn('API response structure unexpected:', response);
         setBooks([]);
       }
     } catch (err) {
@@ -134,44 +108,23 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
   };
 
   const generateBookThumbnail = async (book: Book): Promise<string | undefined> => {
-    console.log('📸 Starting thumbnail generation for book:', book.id);
-    console.log('📸 Book details:', {
-      title: book.title,
-      pdf_url: book.pdf_url,
-      existing_thumbnail: book.thumbnail_url,
-      existing_cover: book.coverUrl,
-      existing_default: book.defaultCover
-    });
-    
     if (book.thumbnail_url || book.coverUrl || book.defaultCover) {
-      console.log('📸 Book already has cover, skipping:', book.id);
       return book.thumbnail_url || book.coverUrl || book.defaultCover;
     }
 
     if (!book.pdf_url) {
-      console.warn('📸 No PDF URL available for thumbnail generation:', book.id);
       return undefined;
     }
 
     try {
-      console.log('📸 Fetching PDF from URL:', book.pdf_url);
-      
       // Test if URL is accessible first
       const headResponse = await fetch(book.pdf_url, { method: 'HEAD' });
-      console.log('📸 HEAD request result:', {
-        status: headResponse.status,
-        statusText: headResponse.statusText,
-        contentType: headResponse.headers.get('content-type'),
-        contentLength: headResponse.headers.get('content-length')
-      });
       
       if (!headResponse.ok) {
         throw new Error(`PDF not accessible: ${headResponse.status} ${headResponse.statusText}`);
       }
       
-      // SIMPLE APPROACH: Create a basic thumbnail with canvas
-      console.log('📸 PDF is accessible, creating simple canvas thumbnail');
-      
+  // SIMPLE APPROACH: Create a basic thumbnail with canvas
       // Create a simple canvas with book title as thumbnail
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -227,13 +180,7 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
       ctx.fillText(line.trim(), 100, y);
       
       const thumbnailUrl = canvas.toDataURL('image/png');
-      console.log('📸 Simple thumbnail generated successfully, size:', thumbnailUrl.length);
-      
       if (thumbnailUrl && thumbnailUrl !== '/placeholder.svg') {
-        console.log('📸 Updating book with thumbnail:', book.id);
-        console.log('📸 Thumbnail URL length:', thumbnailUrl.length);
-        console.log('📸 Thumbnail URL preview:', thumbnailUrl.substring(0, 100) + '...');
-        
         // Update the book in our local state with the generated thumbnail
         setBooks(prevBooks => {
           const updatedBooks = prevBooks.map(b => 
@@ -241,24 +188,15 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
               ? { ...b, defaultCover: thumbnailUrl }
               : b
           );
-          const updatedBook = updatedBooks.find(b => b.id === book.id);
-          console.log('📸 Books state updated, book with thumbnail:', updatedBook);
           return updatedBooks;
         });
         
         return thumbnailUrl;
       } else {
-        console.warn('📸 Thumbnail generation returned placeholder or empty result');
         return undefined;
       }
     } catch (error) {
-      console.error('📸 Failed to generate thumbnail for book:', book.id, error);
-      if (error instanceof Error) {
-        console.error('📸 Error details:', {
-          message: error.message,
-          stack: error.stack
-        });
-      }
+  // Silent fail; no console spam
     }
     
     return undefined;
@@ -267,40 +205,13 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
   // Generate thumbnails for books without covers
   useEffect(() => {
     if (books.length > 0) {
-      console.log('=== BOOKS STATE INSPECTION ===');
-      console.log('Total books:', books.length);
-      console.log('Books array:', books);
-      
-      books.forEach((book, index) => {
-        console.log(`Book ${index + 1}:`, {
-          id: book.id,
-          title: book.title,
-          hasThumbnail: !!book.thumbnail_url,
-          hasCover: !!book.coverUrl,
-          hasDefault: !!book.defaultCover,
-          hasPdfUrl: !!book.pdf_url,
-          thumbnailValue: book.thumbnail_url,
-          coverValue: book.coverUrl,
-          defaultValue: book.defaultCover,
-          pdfUrl: book.pdf_url
-        });
-        
+      books.forEach((book) => {
         if (!book.thumbnail_url && !book.coverUrl && !book.defaultCover && book.pdf_url) {
-          console.log('🎯 WILL GENERATE thumbnail for book:', book.id);
-          // Generate thumbnail asynchronously without blocking
-          generateBookThumbnail(book).catch(console.error);
-        } else {
-          console.log('❌ SKIPPING thumbnail generation for book:', book.id, 'Reason:', {
-            hasThumbnail: !!book.thumbnail_url,
-            hasCover: !!book.coverUrl, 
-            hasDefault: !!book.defaultCover,
-            noPdfUrl: !book.pdf_url
-          });
+          generateBookThumbnail(book).catch(() => {});
         }
       });
-      console.log('=== END BOOKS INSPECTION ===');
     }
-  }, [books.length]); // Using length instead of full array to prevent infinite loops
+  }, [books.length]);
 
   const addBook = async (bookData: Omit<Book, 'id' | 'uploadDate'>): Promise<string> => {
     if (!user || !session) {
@@ -347,6 +258,26 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
           title: "Success",
           description: "Book added to library",
         });
+
+        // Background refresh: poll for thumbnail_url update up to ~30s
+        try {
+          const start = Date.now();
+          const poll = async () => {
+            // Stop after 30s
+            if (Date.now() - start > 30000) return;
+            await refreshLibrary();
+            const updated = (prevId: string) => {
+              const b = books.find(x => x.id === prevId);
+              return b?.thumbnail_url;
+            };
+            if (!updated(newBook.id)) {
+              await new Promise(r => setTimeout(r, 2000));
+              await poll();
+            }
+          };
+          // Fire and forget
+          poll().catch(() => {});
+        } catch {}
 
         return newBook.id;
       } else {
@@ -399,6 +330,24 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
           description: "PDF uploaded successfully",
         });
 
+        // Background refresh: poll for thumbnail_url update up to ~30s
+        try {
+          const start = Date.now();
+          const poll = async () => {
+            if (Date.now() - start > 30000) return;
+            await refreshLibrary();
+            const updated = (prevId: string) => {
+              const b = books.find(x => x.id === prevId);
+              return b?.thumbnail_url;
+            };
+            if (!updated(newBook.id)) {
+              await new Promise(r => setTimeout(r, 2000));
+              await poll();
+            }
+          };
+          poll().catch(() => {});
+        } catch {}
+
         return newBook;
       } else {
         throw new Error('Failed to upload PDF');
@@ -421,17 +370,18 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
     if (!user || !session) {
       throw new Error('User must be authenticated to remove books');
     }
-
+    setLoading(true);
     try {
-      // Note: Backend delete endpoint not implemented yet, just remove from local state
+      const response = await apiService.deleteBook(id);
       setBooks(prevBooks => prevBooks.filter(book => book.id !== id));
       if (currentBook?.id === id) {
         setCurrentBook(null);
       }
-      
       toast({
         title: "Success",
-        description: "Book removed from library",
+        description: response.fullyDeleted
+          ? "Book fully deleted from library."
+          : "Book removed from your library.",
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to remove book';
@@ -442,24 +392,35 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive"
       });
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const updateBook = async (id: string, updates: Partial<Omit<Book, 'id' | 'uploadDate'>>): Promise<void> => {
+  const updateBook = async (
+    id: string,
+    updates: Partial<Omit<Book, 'id' | 'uploadDate'>> & { coverFile?: File }
+  ): Promise<void> => {
     if (!user || !session) {
       throw new Error('User must be authenticated to update books');
     }
-
+    setLoading(true);
     try {
-      // Note: Backend update endpoint not fully implemented yet, just update local state
-      setBooks(prevBooks => prevBooks.map(book => 
-        book.id === id ? { ...book, ...updates } : book
-      ));
-      
-      toast({
-        title: "Success",
-        description: "Book updated successfully",
-      });
+      const response = await apiService.updateBook(id, updates);
+      if (response.success && response.book) {
+        setBooks(prevBooks => prevBooks.map(book =>
+          book.id === id ? { ...book, ...response.book } : book
+        ));
+        if (currentBook?.id === id) {
+          setCurrentBook({ ...currentBook, ...response.book });
+        }
+        toast({
+          title: "Success",
+          description: "Book updated successfully",
+        });
+      } else {
+        throw new Error('Failed to update book');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update book';
       setError(errorMessage);
@@ -469,6 +430,8 @@ export function BooksProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive"
       });
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 

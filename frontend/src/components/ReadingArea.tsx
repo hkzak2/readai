@@ -33,7 +33,6 @@ export const ReadingArea = () => {
   useEffect(() => {
     // Handle PDF URL from backend or create Blob URL from local data
     if (currentBook?.pdf_url) {
-      console.log('Loading PDF from URL:', currentBook.pdf_url);
       
       // Try to properly encode the URL to handle any special characters
       let processedUrl = currentBook.pdf_url;
@@ -41,14 +40,12 @@ export const ReadingArea = () => {
         // Parse and rebuild the URL to ensure proper encoding
         const url = new URL(currentBook.pdf_url);
         processedUrl = url.toString();
-        console.log('Processed URL:', processedUrl);
       } catch (error) {
-        console.warn('URL parsing failed, using original:', error);
+  // Ignore URL parsing issues; fall back to original
       }
       
       setPdfUrl(processedUrl);
     } else if (currentBook?.pdfData) {
-      console.log('Creating Blob URL from PDF data');
       const blob = new Blob([new Uint8Array(currentBook.pdfData)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       setPdfUrl(url);
@@ -56,7 +53,6 @@ export const ReadingArea = () => {
         URL.revokeObjectURL(url);
       };
     } else {
-      console.log('No PDF URL or data available');
       setPdfUrl(null);
     }
   }, [currentBook]);
@@ -83,16 +79,9 @@ export const ReadingArea = () => {
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     updateContainerDimensions(); // Update dimensions after document loads
-    console.log('✅ PDF Document loaded successfully:', numPages, 'pages');
   };
 
   const onDocumentLoadError = (error: Error) => {
-    console.error('❌ PDF Document load error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      name: error.name,
-      stack: error.stack
-    });
     toast({
       title: "PDF Load Error",
       description: `Failed to load PDF: ${error.message}`,
