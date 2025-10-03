@@ -139,9 +139,9 @@ const Dashboard = () => {
                   >
                     <div className="flex items-center space-x-4">
                       <div className="w-12 h-16 bg-muted rounded flex items-center justify-center flex-shrink-0">
-                        {book.defaultCover ? (
+                        {book.thumbnail_url || book.coverUrl || book.defaultCover ? (
                           <img 
-                            src={book.defaultCover}
+                            src={book.thumbnail_url || book.coverUrl || book.defaultCover}
                             alt={book.title}
                             className="w-full h-full object-cover rounded"
                           />

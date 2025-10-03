@@ -4,7 +4,7 @@ import App from './App.tsx'
 import './index.css'
 import { pdfjs } from 'react-pdf';
 
-// Set worker source to use local file
+// Set worker source to use local file (revert to original working configuration)
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

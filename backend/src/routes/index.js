@@ -4,13 +4,25 @@ const pdfRoutes = require('./pdfRoutes');
 const imageRoutes = require('./imageRoutes');
 const audioRoutes = require('./audioRoutes');
 const booksRoutes = require('./booksRoutes');
+const authRoutes = require('./authRoutes');
 
 const router = express.Router();
 
 // Enable CORS preflight for all routes
 router.options('*', cors());
 
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Mount feature routes
+router.use('/auth', authRoutes);
 router.use('/', pdfRoutes);
 router.use('/', imageRoutes);
 router.use('/', audioRoutes);

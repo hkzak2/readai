@@ -1,28 +1,27 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Trash2, Pencil, Link, Plus, FileText, Search, Grid, List, SortAsc, SortDesc, Filter } from "lucide-react";
+import { Trash2, Pencil, Plus, Search, Grid, List, SortAsc, SortDesc, Filter, FileText } from "lucide-react";
 import { useBooks, Book } from "@/contexts/BooksContext";
 import { useNavigate } from "react-router-dom";
 import { EditBookModal } from "@/components/EditBookModal";
-import { useState, useCallback } from "react";
-import { generatePdfThumbnail } from "@/lib/pdf-utils";
-import apiService from "@/services/apiService";
+import { AddBookModal } from "@/components/AddBookModal";
+import { Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent, DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle } from "@/components/ui/dialog";
+import { useState, useCallback, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { ContentLayout } from "@/components/layouts/ContentLayout";
 
 export default function Library() {
-  const { books, addBook, removeBook, setCurrentBook, updateBook } = useBooks();
+  const { books, removeBook, setCurrentBook, updateBook, loading, error } = useBooks();
   const navigate = useNavigate();
+  
+  // Remove verbose state logs to keep console clean
+  
   const [editingBook, setEditingBook] = useState<Book | null>(null);
-  const [urlInput, setUrlInput] = useState("");
-  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+  const [confirmDeleteBook, setConfirmDeleteBook] = useState<Book | null>(null);
   const [addBookModalOpen, setAddBookModalOpen] = useState(false);
-  const [uploadTab, setUploadTab] = useState("file");
   
   // New state for enhanced library features
   const [searchTerm, setSearchTerm] = useState("");
@@ -31,140 +30,8 @@ export default function Library() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filterBy, setFilterBy] = useState<'all' | 'recent' | 'favorites'>('all');
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      // Validate file type
-      if (file.type !== 'application/pdf') {
-        toast({
-          title: "Invalid File",
-          description: "Please upload a PDF file",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Read the file as ArrayBuffer with timeout
-      const arrayBuffer = await Promise.race([
-        file.arrayBuffer(),
-        new Promise<ArrayBuffer>((_, reject) => 
-          setTimeout(() => reject(new Error('File reading timeout')), 10000)
-        )
-      ]);
-      
-      const pdfData = new Uint8Array(arrayBuffer);
-      const defaultCover = await generatePdfThumbnail(pdfData);
-
-      // Add the book to our context with data
-      addBook({
-        title: file.name.replace(/\.pdf$/i, ''),
-        pdfData,
-        defaultCover,
-      });
-      
-      // Close modal on successful upload
-      setAddBookModalOpen(false);
-    } catch (error) {
-      console.error('Failed to process PDF:', error);
-    } finally {
-      // Clear the file input
-      event.target.value = '';
-    }
-  };
-
-  const handleUrlUpload = async () => {
-    if (!urlInput.trim()) return;
-
-    setIsLoadingUrl(true);
-    try {
-      // Validate URL format
-      let urlStr = urlInput.trim();
-      
-      // Handle Google Drive URLs by converting to direct download links
-      if (urlStr.includes('drive.google.com')) {
-        // Extract file ID from various Google Drive URL formats
-        let fileId = '';
-        if (urlStr.includes('/file/d/')) {
-          fileId = urlStr.split('/file/d/')[1].split('/')[0];
-        } else if (urlStr.includes('id=')) {
-          fileId = urlStr.split('id=')[1].split('&')[0];
-        }
-        
-        if (fileId) {
-          urlStr = `https://drive.google.com/uc?export=download&id=${fileId}`;
-          console.log('Converted Google Drive URL to direct download:', urlStr);
-        }
-      }
-      
-      const url = new URL(urlStr);
-      
-      // Use our API service to fetch the PDF
-      const pdfBlob = await Promise.race([
-        apiService.proxyPdf(url.toString()),
-        new Promise<Blob>((_, reject) => 
-          setTimeout(() => reject(new Error('URL fetch timeout')), 30000)
-        )
-      ]);
-      
-      // Get the PDF data
-      const arrayBuffer = await pdfBlob.arrayBuffer();
-      const pdfData = new Uint8Array(arrayBuffer);
-      
-      // Validate that this is actually a PDF by checking the header
-      const pdfHeader = pdfData.slice(0, 4);
-      const pdfSignature = String.fromCharCode(...pdfHeader);
-      if (pdfSignature !== '%PDF') {
-        throw new Error('The downloaded file is not a valid PDF. Please check the URL and try again.');
-      }
-      
-      // Generate thumbnail
-      const defaultCover = await generatePdfThumbnail(pdfData);
-
-      // Extract filename from URL or use default
-      const urlPath = url.pathname;
-      const filename = urlPath.split('/').pop() || 'Downloaded PDF';
-      const title = filename.replace(/\.pdf$/i, '');
-
-      // Add the book to our context with data
-      addBook({
-        title,
-        pdfData,
-        defaultCover,
-      });
-
-      // Clear the URL input and close modal
-      setUrlInput("");
-      setAddBookModalOpen(false);
-    } catch (error) {
-      console.error('Failed to process PDF from URL:', error);
-      
-      // Show user-friendly error message
-      let errorMessage = 'Failed to add PDF from URL.';
-      if (error instanceof Error) {
-        if (error.message.includes('not a valid PDF')) {
-          errorMessage = error.message;
-        } else if (error.message.includes('timeout')) {
-          errorMessage = 'The download timed out. Please check your connection and try again.';
-        } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = 'Unable to access the PDF. Please check the URL or try a different link.';
-        }
-      }
-      
-      // TODO: Replace with proper toast notification
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoadingUrl(false);
-    }
-  };
-
-  const handleEditSave = (bookId: string, updates: Partial<Book>) => {
-    updateBook(bookId, updates);
+  const handleEditSave = async (bookId: string, updates: Partial<Book> & { coverFile?: File }) => {
+    await updateBook(bookId, updates);
     setEditingBook(null);
   };
 
@@ -403,21 +270,24 @@ export default function Library() {
                   onClick={() => handleBookClick(book)}
                 >
                   <div className="aspect-[3/4] bg-muted mb-4 rounded-lg flex items-center justify-center">
-                    {(book.coverUrl || book.defaultCover) ? (
-                      <img 
-                        src={book.coverUrl || book.defaultCover}
-                        alt={book.title}
-                        className="w-full h-full object-cover rounded-lg"
-                      />
-                    ) : (
-                      <div className="text-muted-foreground text-sm">No Cover</div>
-                    )}
+                    {(() => {
+                      const coverSrc = book.thumbnail_url || book.coverUrl || book.defaultCover;
+                      return coverSrc ? (
+                        <img 
+                          src={coverSrc}
+                          alt={book.title}
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="text-muted-foreground text-sm">No Cover</div>
+                      );
+                    })()}
                   </div>
                   
                   <div className="flex-1">
-                    <h3 className="font-medium mb-1 line-clamp-2">{book.title}</h3>
+                    <h3 className="font-medium mb-1 line-clamp-2 text-sm leading-tight">{book.title}</h3>
                     {book.author && (
-                      <p className="text-sm text-muted-foreground mb-2">{book.author}</p>
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{book.author}</p>
                     )}
                     <p className="text-xs text-muted-foreground">
                       Added {new Date(book.uploadDate).toLocaleDateString()}
@@ -433,6 +303,7 @@ export default function Library() {
                         e.stopPropagation();
                         setEditingBook(book);
                       }}
+                      disabled={loading}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -442,8 +313,9 @@ export default function Library() {
                       className="h-8 w-8"
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeBook(book.id);
+                        setConfirmDeleteBook(book);
                       }}
+                      disabled={loading}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -458,9 +330,9 @@ export default function Library() {
                   <div className="flex items-center gap-4">
                     <div className="flex-shrink-0">
                       <div className="w-12 h-16 bg-muted rounded-lg flex items-center justify-center">
-                        {(book.coverUrl || book.defaultCover) ? (
+                        {(book.coverUrl || book.defaultCover || book.thumbnail_url) ? (
                           <img 
-                            src={book.coverUrl || book.defaultCover}
+                            src={book.thumbnail_url || book.coverUrl || book.defaultCover}
                             alt={book.title}
                             className="w-full h-full object-cover rounded-lg"
                           />
@@ -473,11 +345,11 @@ export default function Library() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-foreground truncate text-sm">
+                          <h3 className="font-medium text-foreground line-clamp-2 text-sm leading-tight">
                             {book.title}
                           </h3>
                           {book.author && (
-                            <p className="text-xs text-muted-foreground truncate">
+                            <p className="text-xs text-muted-foreground line-clamp-1">
                               by {book.author}
                             </p>
                           )}
@@ -558,92 +430,36 @@ export default function Library() {
           />
         )}
 
+        {/* Delete confirmation dialog */}
+        {confirmDeleteBook && (
+          <ConfirmDialog open={true} onOpenChange={() => setConfirmDeleteBook(null)}>
+            <ConfirmDialogContent className="sm:max-w-md">
+              <ConfirmDialogHeader>
+                <ConfirmDialogTitle>Delete Book</ConfirmDialogTitle>
+              </ConfirmDialogHeader>
+              <div className="mb-4">Are you sure you want to remove <span className="font-semibold">{confirmDeleteBook.title}</span> from your library?</div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setConfirmDeleteBook(null)} disabled={loading}>Cancel</Button>
+                <Button
+                  variant="destructive"
+                  onClick={async () => {
+                    await removeBook(confirmDeleteBook.id);
+                    setConfirmDeleteBook(null);
+                  }}
+                  disabled={loading}
+                >
+                  Delete
+                </Button>
+              </div>
+            </ConfirmDialogContent>
+          </ConfirmDialog>
+        )}
+
         {/* Add Book Modal */}
-        <Dialog open={addBookModalOpen} onOpenChange={setAddBookModalOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center">
-                <FileText className="h-5 w-5 mr-2" />
-                Add a book
-              </DialogTitle>
-            </DialogHeader>
-            
-            <Tabs value={uploadTab} onValueChange={setUploadTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="file" className="flex items-center gap-2">
-                  <Upload className="h-4 w-4" />
-                  Upload file
-                </TabsTrigger>
-                <TabsTrigger value="url" className="flex items-center gap-2">
-                  <Link className="h-4 w-4" />
-                  From URL
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="file" className="mt-6">
-                <div className="space-y-4">
-                  <div className="text-sm text-muted-foreground">
-                    Choose a PDF file from your device to add to your library.
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="relative overflow-hidden w-full h-24 border-dashed"
-                    size="lg"
-                  >
-                    <div className="flex flex-col items-center">
-                      <Upload className="h-6 w-6 mb-2" />
-                      <span>Click to select PDF file</span>
-                    </div>
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={handleFileUpload}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                  </Button>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="url" className="mt-6">
-                <div className="space-y-4">
-                  <div className="text-sm text-muted-foreground">
-                    Enter a direct link to a PDF file. The file will be downloaded and added to your library.
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      type="url"
-                      placeholder="Paste PDF URL here..."
-                      value={urlInput}
-                      onChange={(e) => setUrlInput(e.target.value)}
-                      className="flex-1"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !isLoadingUrl) {
-                          handleUrlUpload();
-                        }
-                      }}
-                    />
-                    <Button
-                      onClick={handleUrlUpload}
-                      disabled={!urlInput.trim() || isLoadingUrl}
-                    >
-                      {isLoadingUrl ? (
-                        <>
-                          <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                          Adding...
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </DialogContent>
-        </Dialog>
+        <AddBookModal 
+          isOpen={addBookModalOpen} 
+          onClose={() => setAddBookModalOpen(false)} 
+        />
       </div>
     </ContentLayout>
   );

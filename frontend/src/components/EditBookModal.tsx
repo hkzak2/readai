@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -10,29 +11,41 @@ interface EditBookModalProps {
   book: Book;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (updates: Partial<Book>) => void;
+  onSave: (updates: Partial<Book> & { coverFile?: File }) => void | Promise<void>;
 }
 
 export function EditBookModal({ book, isOpen, onClose, onSave }: EditBookModalProps) {
   const [title, setTitle] = useState(book.title);
   const [author, setAuthor] = useState(book.author || "");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Reset local form state when the selected book or dialog open state changes
+  useEffect(() => {
+    if (isOpen) {
+      setTitle(book.title);
+      setAuthor(book.author || "");
+      setPreviewUrl(null);
+      setCoverFile(null);
+    }
+  }, [book, isOpen]);
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      setCoverFile(file);
       const imageUrl = URL.createObjectURL(file);
       setPreviewUrl(imageUrl);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     onSave({
       title,
       author: author || undefined,
-      coverUrl: previewUrl || undefined,
+      coverFile: coverFile || undefined,
     });
     onClose();
   };
@@ -41,11 +54,12 @@ export function EditBookModal({ book, isOpen, onClose, onSave }: EditBookModalPr
     setTitle(book.title);
     setAuthor(book.author || "");
     setPreviewUrl(null);
+    setCoverFile(null);
     onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Edit Book Details</DialogTitle>
@@ -74,12 +88,12 @@ export function EditBookModal({ book, isOpen, onClose, onSave }: EditBookModalPr
 
           <div className="space-y-2">
             <Label>Cover Image</Label>
-            <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4">
               <div className="relative aspect-[3/4] w-32 bg-muted rounded-lg overflow-hidden">
-                {(previewUrl || book.coverUrl || book.defaultCover) ? (
+        {(previewUrl || book.thumbnail_url || book.coverUrl || book.defaultCover) ? (
                   <>
                     <img
-                      src={previewUrl || book.coverUrl || book.defaultCover}
+            src={previewUrl || book.thumbnail_url || book.coverUrl || book.defaultCover}
                       alt="Cover preview"
                       className="w-full h-full object-cover"
                     />

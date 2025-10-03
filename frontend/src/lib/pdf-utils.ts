@@ -1,14 +1,16 @@
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Set up the worker source for pdfjs-dist
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/assets/pdf.worker.min.js';
+// Set up the worker source for pdfjs-dist using local file (same as ReadingArea)
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 export async function generatePdfThumbnail(pdfData: Uint8Array): Promise<string | undefined> {
   try {
     const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+    
     const page = await pdf.getPage(1); // Get the first page
 
     const viewport = page.getViewport({ scale: 0.5 }); // Use a smaller scale for thumbnail
+    
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     
@@ -27,10 +29,10 @@ export async function generatePdfThumbnail(pdfData: Uint8Array): Promise<string 
     await page.render(renderContext).promise;
     
     // Return the canvas as a data URL
-    return canvas.toDataURL('image/png');
+    const dataUrl = canvas.toDataURL('image/png');
+    return dataUrl;
   } catch (error) {
-    console.error('Failed to generate PDF thumbnail:', error);
-    // Return a placeholder if thumbnail generation fails
+  // Silent failure; return a placeholder if thumbnail generation fails
     return '/placeholder.svg';
   }
 }

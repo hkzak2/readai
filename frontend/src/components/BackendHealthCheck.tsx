@@ -22,7 +22,7 @@ export function BackendHealthCheck() {
             await apiService.imageToText(minimalPixel);
             isHealthy = true;
           } catch (error) {
-            console.error("Alternate health check failed:", error);
+            // Silent fail; alternate health check may fail without spamming console
             isHealthy = false;
           }
         } else {
