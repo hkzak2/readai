@@ -399,6 +399,129 @@ const apiService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  /**
+   * Fetch notes for a specific book
+   * @param {string} bookId - Book ID
+   * @returns {Promise<Object>} - Notes response
+   */
+  async getBookNotes(bookId: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/books/${bookId}/notes`, {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json',
+          ...getAuthHeaders()
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch notes');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Create a note for a book
+   */
+  async createBookNote(bookId: string, payload: {
+    content: string;
+    title?: string;
+    pageNumber?: number | null;
+    pageId?: string | null;
+    textSelection?: string | null;
+    noteType?: string;
+    positionMetadata?: Record<string, unknown> | string;
+    isPrivate?: boolean;
+  }) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/books/${bookId}/notes`, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create note');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Update a note for a book
+   */
+  async updateBookNote(bookId: string, noteId: string, payload: {
+    content?: string;
+    title?: string | null;
+    pageNumber?: number | null;
+    textSelection?: string | null;
+    noteType?: string;
+    positionMetadata?: Record<string, unknown> | string;
+    isPrivate?: boolean;
+  }) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/books/${bookId}/notes/${noteId}`, {
+        method: 'PATCH',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update note');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a note for a book
+   */
+  async deleteBookNote(bookId: string, noteId: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/books/${bookId}/notes/${noteId}`, {
+        method: 'DELETE',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json',
+          ...getAuthHeaders()
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete note');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
   }
 };
 

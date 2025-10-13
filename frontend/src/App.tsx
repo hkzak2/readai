@@ -7,6 +7,7 @@ import { BrowserRouter } from "react-router-dom";
 import { updateViewportHeight } from "@/lib/utils";
 import { UIProvider } from './contexts/UIContext';
 import { BooksProvider } from './contexts/BooksContext';
+import { NotesProvider } from './contexts/NotesContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { BackendHealthCheck } from "./components/BackendHealthCheck";
 import { AppRouter } from "./components/AppRouter";
@@ -31,18 +32,20 @@ const App = () => {
   return (
     <AuthProvider>
       <BooksProvider>
-        <UIProvider>
-          <QueryClientProvider client={queryClient}>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BackendHealthCheck />
-              <BrowserRouter>
-                <AppRouter />
-              </BrowserRouter>
-            </TooltipProvider>
-          </QueryClientProvider>
-        </UIProvider>
+        <NotesProvider>
+          <UIProvider>
+            <QueryClientProvider client={queryClient}>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <BackendHealthCheck />
+                <BrowserRouter>
+                  <AppRouter />
+                </BrowserRouter>
+              </TooltipProvider>
+            </QueryClientProvider>
+          </UIProvider>
+        </NotesProvider>
       </BooksProvider>
     </AuthProvider>
   );

@@ -237,6 +237,155 @@ class SupabaseService {
     }
   }
 
+  async ensureUserHasBookAccess(userId, bookId) {
+    try {
+      const { data: ownership, error: ownershipError } = await this.adminClient
+        .from('books')
+        .select('user_id')
+        .eq('id', bookId)
+        .single();
+
+      if (ownershipError && ownershipError.code !== 'PGRST116') {
+        throw ownershipError;
+      }
+
+      if (ownership && ownership.user_id === userId) {
+        return true;
+      }
+
+      const { count, error } = await this.adminClient
+        .from('user_books')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('book_id', bookId);
+
+      if (error) throw error;
+
+      return (count || 0) > 0;
+    } catch (error) {
+      logger.error('Error verifying book access:', error);
+      throw error;
+    }
+  }
+
+  async getBookNotes(userId, bookId) {
+    try {
+      const { data, error } = await this.adminClient
+        .from('book_notes')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('book_id', bookId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      logger.error('Error fetching book notes:', error);
+      throw error;
+    }
+  }
+
+  async createBookNote(userId, bookId, noteData) {
+    try {
+      const { data, error } = await this.adminClient
+        .from('book_notes')
+        .insert({
+          user_id: userId,
+          book_id: bookId,
+          page_id: noteData.page_id || null,
+          title: noteData.title || null,
+          content: noteData.content,
+          page_number: noteData.page_number || null,
+          text_selection: noteData.text_selection || null,
+          note_type: noteData.note_type || 'general',
+          position_metadata: noteData.position_metadata || {},
+          is_private: typeof noteData.is_private === 'boolean' ? noteData.is_private : true
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      logger.error('Error creating book note:', error);
+      throw error;
+    }
+  }
+
+  async getBookNoteById(noteId) {
+    try {
+      const { data, error } = await this.adminClient
+        .from('book_notes')
+        .select('*')
+        .eq('id', noteId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      return data || null;
+    } catch (error) {
+      logger.error('Error fetching book note by id:', error);
+      throw error;
+    }
+  }
+
+  async updateBookNote(userId, noteId, updates) {
+    try {
+      const existing = await this.getBookNoteById(noteId);
+      if (!existing) {
+        return null;
+      }
+
+      if (existing.user_id !== userId) {
+        const err = new Error('Forbidden');
+        err.status = 403;
+        throw err;
+      }
+
+      const updatePayload = { ...updates, updated_at: new Date().toISOString() };
+
+      const { data, error } = await this.adminClient
+        .from('book_notes')
+        .update(updatePayload)
+        .eq('id', noteId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      if (error.status === 403) throw error;
+      logger.error('Error updating book note:', error);
+      throw error;
+    }
+  }
+
+  async deleteBookNote(userId, noteId) {
+    try {
+      const existing = await this.getBookNoteById(noteId);
+      if (!existing) {
+        return false;
+      }
+
+      if (existing.user_id !== userId) {
+        const err = new Error('Forbidden');
+        err.status = 403;
+        throw err;
+      }
+
+      const { error } = await this.adminClient
+        .from('book_notes')
+        .delete()
+        .eq('id', noteId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      if (error.status === 403) throw error;
+      logger.error('Error deleting book note:', error);
+      throw error;
+    }
+  }
+
   // Page management
   async createPage(bookId, pageData) {
     try {
