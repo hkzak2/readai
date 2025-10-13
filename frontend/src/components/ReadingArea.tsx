@@ -76,6 +76,13 @@ export const ReadingArea = () => {
     };
   }, []);
 
+  // Redirect to library if no book is selected (must be in useEffect, not during render)
+  useEffect(() => {
+    if (!currentBook) {
+      navigate('/library');
+    }
+  }, [currentBook, navigate]);
+
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     updateContainerDimensions(); // Update dimensions after document loads
@@ -348,8 +355,8 @@ export const ReadingArea = () => {
 
 
 
+  // Don't render anything if no book (useEffect above will handle redirect)
   if (!currentBook) {
-    navigate('/library');
     return null;
   }
 

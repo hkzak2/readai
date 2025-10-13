@@ -112,7 +112,7 @@ class GeminiService {
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: {
-            voiceName: 'Zephyr',
+            voiceName: 'Sadaltager',
           }
         }
       },

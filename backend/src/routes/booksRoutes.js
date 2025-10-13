@@ -1,7 +1,8 @@
 const express = require('express');
 const multer = require('multer');
-const { authenticateUser, optionalAuth } = require('../middleware/authMiddleware');
+const { authenticateUser } = require('../middleware/authMiddleware');
 const booksController = require('../controllers/booksController');
+const notesController = require('../controllers/notesController');
 
 const router = express.Router();
 
@@ -30,6 +31,12 @@ router.post('/', authenticateUser, booksController.createBook);
 router.post('/upload', authenticateUser, upload.single('pdf'), booksController.uploadPDF);
 router.post('/:bookId/add-to-library', authenticateUser, booksController.addToLibrary);
 router.put('/:bookId/progress', authenticateUser, booksController.updateProgress);
+
+// Notes routes
+router.get('/:bookId/notes', authenticateUser, notesController.listNotes);
+router.post('/:bookId/notes', authenticateUser, notesController.createNote);
+router.patch('/:bookId/notes/:noteId', authenticateUser, notesController.updateNote);
+router.delete('/:bookId/notes/:noteId', authenticateUser, notesController.deleteNote);
 
 // PATCH for book details (title, author, cover)
 const coverUpload = multer({
