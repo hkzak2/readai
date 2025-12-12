@@ -11,7 +11,7 @@ class GeminiDocumentService {
     this.ai = new GoogleGenAI({
       apiKey: config.geminiApiKey,
     });
-    
+
     logger.info('Gemini Document service initialized');
   }
 
@@ -40,19 +40,23 @@ class GeminiDocumentService {
         throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
       }
 
-      // Save to temporary file (SDK works better with file paths in Node.js)
+      // Save to temporary file then read synchronously
+      // The SDK requires a file buffer with explicit mimeType configuration
       const pdfBuffer = Buffer.from(await response.arrayBuffer());
       tempFilePath = path.join(os.tmpdir(), `gemini-upload-${Date.now()}.pdf`);
       await fs.writeFile(tempFilePath, pdfBuffer);
 
       logger.debug(`PDF saved to temporary file: ${tempFilePath}, size: ${pdfBuffer.length} bytes`);
 
-      // Upload to Gemini File API using file path (recommended for Node.js)
-      // The SDK will handle mimeType detection from the file extension
+      // CRITICAL: The SDK accepts either a file path (string) or a Blob object
+      // When passing a file path string, the SDK can infer mimeType from the .pdf extension
+      // When passing a Buffer, the SDK cannot determine the type and throws mimeType error
+      // Solution: Pass the file path directly instead of reading as Buffer
       const file = await this.ai.files.upload({
-        file: tempFilePath,
+        file: tempFilePath,  // Pass string path, NOT Buffer
         config: {
           displayName,
+          mimeType: 'application/pdf',  // Explicit mimeType still recommended
         },
       });
 
@@ -106,7 +110,7 @@ class GeminiDocumentService {
     try {
       while (Date.now() - startTime < timeout) {
         const file = await this.ai.files.get({ name: fileName });
-        
+
         logger.debug(`File status: ${file.state} - File: ${fileName}`);
 
         if (file.state === 'ACTIVE') {

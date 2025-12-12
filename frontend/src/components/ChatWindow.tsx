@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Card } from "./ui/card";
 import { TextInput } from "./ui/text-input";
-import { User, Bot } from "lucide-react";
+import { User, Bot, Plus, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import apiService, { ChatConversationResponseMessage } from "@/services/apiService";
 import { useBooks } from "@/contexts/BooksContext";
+import { useNotes } from "@/contexts/NotesContext";
+import { Button } from "./ui/button";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -17,6 +19,7 @@ interface Message {
 
 export const ChatWindow = () => {
   const { currentBook } = useBooks();
+  const { createNote } = useNotes();
   const [messages, setMessages] = useState<Message[]>([{
     id: "welcome",
     content: "Select a book from your library to start a conversation.",
@@ -30,6 +33,7 @@ export const ChatWindow = () => {
   const [cacheExpiresAt, setCacheExpiresAt] = useState<Date | null>(null);
   const [hasActiveCache, setHasActiveCache] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
   const scrollViewportRef = useRef<HTMLDivElement>(null);
 
   const CACHE_EXTENSION_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
@@ -42,6 +46,20 @@ export const ChatWindow = () => {
       timestamp: item.created_at ? new Date(item.created_at) : new Date(),
     }));
   }, []);
+
+  const handleSaveAsNote = useCallback(async (messageId: string, content: string) => {
+    if (!currentBook?.id || savingNoteId) return;
+    
+    setSavingNoteId(messageId);
+    try {
+      await createNote(currentBook.id, {
+        content,
+        noteType: 'general',
+      });
+    } finally {
+      setSavingNoteId(null);
+    }
+  }, [currentBook?.id, createNote, savingNoteId]);
 
   const addSystemMessage = useCallback((content: string) => {
     setMessages(prev => ([
@@ -325,6 +343,23 @@ export const ChatWindow = () => {
                       {message.timestamp.toLocaleTimeString()}
                     </p>
                   </div>
+                  {message.sender === 'assistant' && currentBook?.id && (
+                    <div className="shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleSaveAsNote(message.id, message.content)}
+                        disabled={savingNoteId === message.id}
+                      >
+                        {savingNoteId === message.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </Card>
             ))}

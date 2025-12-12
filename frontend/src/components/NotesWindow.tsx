@@ -7,6 +7,8 @@
   import { useEffect, useMemo, useState } from "react";
   import { useBooks } from "../contexts/BooksContext";
   import { useNotes } from "../contexts/NotesContext";
+  import ReactMarkdown from 'react-markdown';
+  import remarkGfm from 'remark-gfm';
 
   export const NotesWindow = () => {
     const { currentBook } = useBooks();
@@ -132,7 +134,11 @@
                       {note.title && (
                         <p className="text-sm font-semibold mb-1">{note.title}</p>
                       )}
-                      <p className="text-sm whitespace-pre-line">{note.content}</p>
+                      <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {note.content}
+                        </ReactMarkdown>
+                      </div>
                       <div className="mt-2 text-xs text-muted-foreground space-x-2">
                         {createdAt && <span>{createdAt.toLocaleString()}</span>}
                         {note.page_number !== null && note.page_number !== undefined && (
