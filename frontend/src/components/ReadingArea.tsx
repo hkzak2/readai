@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
-import { Play, Pause, Mic, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Play, Pause, Mic, ChevronLeft, ChevronRight, Loader2, Maximize2, Minimize2, Repeat } from "lucide-react";
 import { useUI } from "../contexts/UIContext";
 import { useBooks } from "../contexts/BooksContext";
 import { useNavigate } from "react-router-dom";
@@ -11,9 +11,17 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import html2canvas from 'html2canvas';
 import { toast } from "@/hooks/use-toast";
 import { ScrollArea } from "./ui/scroll-area";
+import { Slider } from "./ui/slider";
 import apiService from "../services/apiService";
 
 // Worker is configured globally in main.tsx - no need to set it here
+
+interface PrefetchedAudioData {
+  audio: HTMLAudioElement;
+  url: string;
+  duration: number;
+  pageNumber: number;
+}
 
 export const ReadingArea = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,6 +31,21 @@ export const ReadingArea = () => {
   const [pageWidth, setPageWidth] = useState<number>(800);
   const [pageHeight, setPageHeight] = useState<number | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [fitMode, setFitMode] = useState<'width' | 'page'>('width');
+  const [zoomScale, setZoomScale] = useState<number>(100); // 50-150%
+  const [audioPausedAt, setAudioPausedAt] = useState<number>(0);
+  const [currentAudioUrl, setCurrentAudioUrl] = useState<string | null>(null);
+  const [audioDuration, setAudioDuration] = useState<number>(0);
+  const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
+  
+  // Auto-play and prefetch state
+  const [autoPlayEnabled, setAutoPlayEnabled] = useState(false);
+  const [isPrefetching, setIsPrefetching] = useState(false);
+  const [prefetchedAudio, setPrefetchedAudio] = useState<Map<number, PrefetchedAudioData>>(new Map());
+  const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
+  const [prefetchPageNumber, setPrefetchPageNumber] = useState<number | null>(null);
+  const prefetchAbortController = useRef<AbortController | null>(null);
+  const prefetchPageRef = useRef<HTMLDivElement>(null);
   const { isAICollapsed } = useUI();
   const { currentBook } = useBooks();
   const navigate = useNavigate();
@@ -66,15 +89,23 @@ export const ReadingArea = () => {
     return () => window.removeEventListener('resize', updateContainerDimensions);
   }, []);
 
-  // Cleanup audio on unmount
+  // Cleanup audio on unmount only
   useEffect(() => {
+    // Store refs in local variables for cleanup
+    const currentAudioRef = audioRef;
+    const currentPrefetchAbortController = prefetchAbortController;
+    
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+      // Cancel any in-flight prefetch
+      if (currentPrefetchAbortController.current) {
+        currentPrefetchAbortController.current.abort();
       }
     };
-  }, []);
+  }, []); // Empty dependency array - only run on unmount
 
   // Redirect to library if no book is selected (must be in useEffect, not during render)
   useEffect(() => {
@@ -82,6 +113,14 @@ export const ReadingArea = () => {
       navigate('/library');
     }
   }, [currentBook, navigate]);
+
+  // Auto-play effect: triggers playback when page changes during auto-play
+  useEffect(() => {
+    if (shouldAutoPlay && !isPlaying && !isReading) {
+      setShouldAutoPlay(false);
+      handleReadPage(true);
+    }
+  }, [pageNumber, shouldAutoPlay, isPlaying, isReading]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -100,32 +139,348 @@ export const ReadingArea = () => {
   const updateContainerDimensions = () => {
     if (containerRef.current) {
       const containerWidth = containerRef.current.clientWidth;
+      const scale = zoomScale / 100; // Convert percentage to decimal
 
-      // Calculate width to fully fit the container
-      const maxWidth = Math.min(containerWidth * 0.9, 800);
-
-      // Adjust width to fit within container
-      setPageWidth(maxWidth);
-
-      // Let the page height be determined by its aspect ratio for scrolling
-      setPageHeight(null);
+      if (fitMode === 'page') {
+        // Calculate available viewport height more accurately
+        // Account for: top bar (~2-3rem), card padding (~3-8rem), container padding (~2-6rem), control bar (70px)
+        const viewportHeight = window.innerHeight;
+        const reservedHeight = 100; // Top bar + margins
+        const cardPadding = 64; // Card padding (p-3 to p-8)
+        const containerPadding = 48; // Container padding (p-2 to p-6)
+        const controlBar = 70; // Bottom control bar
+        
+        const availableHeight = (viewportHeight - reservedHeight - cardPadding - containerPadding - controlBar) * scale;
+        const maxWidth = containerWidth * 0.9 * scale;
+        
+        setPageWidth(maxWidth);
+        setPageHeight(availableHeight);
+      } else {
+        // Fit width only, let height scroll
+        const maxWidth = Math.min(containerWidth * 0.9, 800) * scale;
+        setPageWidth(maxWidth);
+        setPageHeight(null);
+      }
     }
   };
 
-  // Navigation
-  const handlePrevPage = () => setPageNumber(prev => Math.max(1, prev - 1));
-  const handleNextPage = () => setPageNumber(prev => prev < (numPages || 0) ? prev + 1 : prev);
+  // Re-calculate dimensions when fit mode or zoom changes
+  useEffect(() => {
+    updateContainerDimensions();
+  }, [fitMode, zoomScale]);
 
-  const handleReadPage = async () => {
+  // Helper function to format time in HH:MM:SS
+  const formatTime = (seconds: number): string => {
+    if (!isFinite(seconds) || seconds < 0) return '00:00:00';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  // Prefetch audio for next page - triggers rendering of hidden page
+  const prefetchNextPageAudio = useCallback(async (targetPageNumber: number) => {
+    if (!currentBook || !numPages || targetPageNumber > numPages || targetPageNumber < 1) {
+      return;
+    }
+
+    // Don't prefetch if already in progress or already cached
+    if (isPrefetching || prefetchedAudio.has(targetPageNumber)) {
+      return;
+    }
+
+    // Set the prefetch page number to trigger hidden page render
+    setPrefetchPageNumber(targetPageNumber);
+    setIsPrefetching(true);
+    prefetchAbortController.current = new AbortController();
+    
+    toast({
+      title: "Preparing Next Page",
+      description: `Pre-loading page ${targetPageNumber}...`,
+      duration: 2000,
+    });
+  }, [currentBook, numPages, isPrefetching, prefetchedAudio]);
+
+  // Effect to capture and process the hidden prefetch page once it's rendered
+  useEffect(() => {
+    const processPrefetchPage = async () => {
+      if (!prefetchPageNumber || !prefetchPageRef.current || !currentBook) {
+        return;
+      }
+
+      // Check if prefetch was aborted
+      if (prefetchAbortController.current?.signal.aborted) {
+        setIsPrefetching(false);
+        setPrefetchPageNumber(null);
+        return;
+      }
+
+      try {
+        // Wait for the hidden page to render
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Check again if aborted during wait
+        if (prefetchAbortController.current?.signal.aborted) {
+          return;
+        }
+
+        // Capture the hidden page
+        const prefetchCanvas = prefetchPageRef.current.querySelector('canvas');
+        if (!prefetchCanvas) {
+          console.warn('Prefetch: Could not find canvas for page', prefetchPageNumber);
+          return;
+        }
+
+        // Create a new canvas and copy the PDF canvas content
+        const canvas = document.createElement('canvas');
+        canvas.width = prefetchCanvas.width;
+        canvas.height = prefetchCanvas.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          console.warn('Prefetch: Could not get canvas context');
+          return;
+        }
+        ctx.drawImage(prefetchCanvas, 0, 0);
+        const imageBase64 = canvas.toDataURL('image/png');
+
+        // Get text from API (will use cache if available)
+        const textResponse = await apiService.getCachedPageText(
+          currentBook.id, 
+          prefetchPageNumber, 
+          imageBase64
+        );
+
+        if (prefetchAbortController.current?.signal.aborted) {
+          return;
+        }
+
+        const textData = textResponse.text;
+        let pageText = '';
+        if (textData.header?.trim()) {
+          pageText += textData.header.trim() + '\n\n';
+        }
+        if (textData.body?.trim()) {
+          pageText += textData.body.trim();
+        }
+
+        if (!pageText.trim()) {
+          console.warn('Prefetch: No text found on page', prefetchPageNumber);
+          return;
+        }
+
+        // Get audio from API (will use cache if available)
+        const audioResponse = await apiService.getCachedPageAudio(
+          currentBook.id, 
+          prefetchPageNumber, 
+          pageText, 
+          'Zephyr'
+        );
+
+        if (prefetchAbortController.current?.signal.aborted) {
+          return;
+        }
+
+        if (!audioResponse?.audioUrl) {
+          console.warn('Prefetch: No audio URL returned for page', prefetchPageNumber);
+          return;
+        }
+
+        // Create and preload the audio element
+        const prefetchedAudioElement = new Audio(audioResponse.audioUrl);
+        
+        // Wait for audio to be ready
+        await new Promise<void>((resolve, reject) => {
+          prefetchedAudioElement.addEventListener('loadedmetadata', () => resolve());
+          prefetchedAudioElement.addEventListener('error', () => reject(new Error('Audio load failed')));
+          prefetchedAudioElement.load();
+        });
+
+        // Store the prefetched audio
+        const prefetchData: PrefetchedAudioData = {
+          audio: prefetchedAudioElement,
+          url: audioResponse.audioUrl,
+          duration: prefetchedAudioElement.duration,
+          pageNumber: prefetchPageNumber,
+        };
+
+        setPrefetchedAudio(prev => {
+          const newMap = new Map(prev);
+          newMap.set(prefetchPageNumber, prefetchData);
+          return newMap;
+        });
+
+        // Only show toast for newly generated audio, not cached
+        if (!audioResponse.cached) {
+          toast({
+            title: "Next Page Ready",
+            description: `Page ${prefetchPageNumber} is prepared for playback.`,
+            duration: 2000,
+          });
+        }
+
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.warn('Prefetch failed for page', prefetchPageNumber, error);
+        }
+      } finally {
+        setIsPrefetching(false);
+        setPrefetchPageNumber(null);
+        prefetchAbortController.current = null;
+      }
+    };
+
+    processPrefetchPage();
+  }, [prefetchPageNumber, currentBook]);
+
+  // Cancel any ongoing prefetch
+  const cancelPrefetch = useCallback(() => {
+    if (prefetchAbortController.current) {
+      prefetchAbortController.current.abort();
+      prefetchAbortController.current = null;
+    }
+    setIsPrefetching(false);
+  }, []);
+
+  // Navigation
+  const handlePrevPage = useCallback(() => {
+    const newPage = Math.max(1, pageNumber - 1);
+    if (newPage === pageNumber) return;
+    
+    setPageNumber(newPage);
+    
+    // Cancel any ongoing prefetch
+    cancelPrefetch();
+    
+    // Check if we have prefetched audio for this page
+    const prefetched = prefetchedAudio.get(newPage);
+    
+    if (!prefetched) {
+      // Reset audio state when changing pages without prefetch
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setIsPlaying(false);
+      setAudioPausedAt(0);
+      setCurrentAudioUrl(null);
+      setAudioCurrentTime(0);
+      setAudioDuration(0);
+    }
+    // Keep auto-play enabled on manual navigation
+  }, [pageNumber, prefetchedAudio, cancelPrefetch]);
+  
+  const handleNextPage = useCallback((autoAdvance: boolean = false) => {
+    const newPage = pageNumber < (numPages || 0) ? pageNumber + 1 : pageNumber;
+    if (newPage === pageNumber) return;
+    
+    setPageNumber(newPage);
+    
+    // Cancel any ongoing prefetch
+    cancelPrefetch();
+    
+    // Check if we have prefetched audio for this page
+    const prefetched = prefetchedAudio.get(newPage);
+    
+    if (!prefetched || !autoAdvance) {
+      // Reset audio state when changing pages without prefetch
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setIsPlaying(false);
+      setAudioPausedAt(0);
+      setCurrentAudioUrl(null);
+      setAudioCurrentTime(0);
+      setAudioDuration(0);
+    }
+    // Keep auto-play enabled on manual navigation
+  }, [pageNumber, numPages, prefetchedAudio, cancelPrefetch]);
+
+  const handleReadPage = async (useAutoPlay: boolean = false) => {
     if (isReading) {
       return;
     }
 
+    // Handle pause
     if (isPlaying) {
       if (audioRef.current) {
         audioRef.current.pause();
+        setAudioPausedAt(audioRef.current.currentTime);
         setIsPlaying(false);
       }
+      return;
+    }
+
+    // Handle resume if same audio exists
+    if (audioRef.current && currentAudioUrl && audioPausedAt > 0) {
+      audioRef.current.currentTime = audioPausedAt;
+      audioRef.current.play().catch(error => {
+        toast({ title: "Playback Error", description: error.message, variant: "destructive" });
+        setIsPlaying(false);
+      });
+      setIsPlaying(true);
+      return;
+    }
+
+    // Check if we have prefetched audio for current page
+    const prefetched = prefetchedAudio.get(pageNumber);
+    if (prefetched && useAutoPlay) {
+      // Use prefetched audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      
+      const prefetchedAudioElement = prefetched.audio;
+      audioRef.current = prefetchedAudioElement;
+      setCurrentAudioUrl(prefetched.url);
+      setAudioDuration(prefetched.duration);
+      setAudioPausedAt(0);
+      setAudioCurrentTime(0);
+      
+      // Remove from prefetch cache
+      setPrefetchedAudio(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(pageNumber);
+        return newMap;
+      });
+      
+      // Add event listeners to the prefetched audio element
+      prefetchedAudioElement.addEventListener('timeupdate', () => {
+        setAudioCurrentTime(prefetchedAudioElement.currentTime);
+      });
+      
+      prefetchedAudioElement.addEventListener('playing', () => {
+        setIsPlaying(true);
+        
+        // Start prefetching next page when current audio starts playing
+        if (pageNumber < (numPages || 0)) {
+          prefetchNextPageAudio(pageNumber + 1);
+        }
+      });
+      
+      prefetchedAudioElement.addEventListener('ended', () => {
+        setIsPlaying(false);
+        setAudioPausedAt(0);
+        setAudioCurrentTime(0);
+        
+        // Auto-advance to next page if enabled
+        if (autoPlayEnabled && pageNumber < (numPages || 0)) {
+          setShouldAutoPlay(true);
+          handleNextPage(true);
+        }
+      });
+
+      prefetchedAudioElement.addEventListener('error', () => {
+        toast({ title: "Error", description: "Could not play audio.", variant: "destructive" });
+        setIsPlaying(false);
+      });
+      
+      // Play immediately
+      prefetchedAudioElement.play().catch(error => {
+        toast({ title: "Playback Error", description: error.message, variant: "destructive" });
+        setIsPlaying(false);
+      });
+      
       return;
     }
 
@@ -253,8 +608,18 @@ export const ReadingArea = () => {
       
       const newAudio = new Audio(audioResponse.audioUrl);
       audioRef.current = newAudio;
+      setCurrentAudioUrl(audioResponse.audioUrl);
+      setAudioPausedAt(0);
       
       // Add event listeners
+      newAudio.addEventListener('loadedmetadata', () => {
+        setAudioDuration(newAudio.duration);
+      });
+
+      newAudio.addEventListener('timeupdate', () => {
+        setAudioCurrentTime(newAudio.currentTime);
+      });
+
       newAudio.addEventListener('canplaythrough', () => {
         newAudio.play().catch(error => {
           toast({ title: "Playback Error", description: "Could not play audio: " + error.message, variant: "destructive" });
@@ -264,10 +629,23 @@ export const ReadingArea = () => {
       
       newAudio.addEventListener('playing', () => {
         setIsPlaying(true);
+        
+        // Start prefetching next page when current audio starts playing
+        if (pageNumber < (numPages || 0)) {
+          prefetchNextPageAudio(pageNumber + 1);
+        }
       });
       
       newAudio.addEventListener('ended', () => {
         setIsPlaying(false);
+        setAudioPausedAt(0);
+        setAudioCurrentTime(0);
+        
+        // Auto-advance to next page if enabled
+        if (autoPlayEnabled && pageNumber < (numPages || 0)) {
+          setShouldAutoPlay(true); // Flag to trigger auto-play after page change
+          handleNextPage(true); // Auto-advance flag
+        }
       });
 
       newAudio.addEventListener('error', (e) => {
@@ -370,12 +748,42 @@ export const ReadingArea = () => {
         
         {/* Reading area with fixed padding at bottom to make room for controls */}
         <Card className="h-[calc(100%-70px)] glass bg-card shadow-lg p-3 sm:p-4 lg:p-8 animate-fade-in">
-          <ScrollArea className="h-full w-full">
-            <div ref={containerRef} className="flex justify-center p-4">
+          <ScrollArea className="h-full">
+            <div ref={containerRef} className="relative flex items-center justify-center min-h-full p-2 sm:p-4 lg:p-6">
+              {currentBook && pdfUrl && (
+                <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-background/95 backdrop-blur-sm rounded-lg p-2 shadow-lg">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFitMode(fitMode === 'width' ? 'page' : 'width')}
+                    className="hover:bg-primary/10 h-8 w-8"
+                    title={fitMode === 'width' ? 'Fit page to window' : 'Fit width only'}
+                  >
+                    {fitMode === 'width' ? (
+                      <Maximize2 className="h-4 w-4" />
+                    ) : (
+                      <Minimize2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <div className="w-full h-px bg-border" />
+                  <div className="flex flex-col items-center gap-1 px-1">
+                    <span className="text-xs text-muted-foreground">{zoomScale}%</span>
+                    <Slider
+                      value={[zoomScale]}
+                      min={50}
+                      max={150}
+                      step={5}
+                      onValueChange={(value) => setZoomScale(value[0])}
+                      className="h-24"
+                      orientation="vertical"
+                    />
+                  </div>
+                </div>
+              )}
               {!currentBook && (
                 <div className="flex items-center justify-center h-full text-center">
                   <div className="py-8">
-                    <p className="text-muted-foreground mb-2">No book selected</p>
+                    <p className="text-muted-foreground mb-4">No book selected</p>
                     <Button onClick={() => navigate('/library')} variant="outline">
                       Go to Library
                     </Button>
@@ -429,6 +837,21 @@ export const ReadingArea = () => {
                       renderTextLayer={false}
                     />
                   </div>
+                  {/* Hidden page for prefetching - renders off-screen */}
+                  {prefetchPageNumber && (
+                    <div 
+                      ref={prefetchPageRef} 
+                      className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none"
+                      aria-hidden="true"
+                    >
+                      <Page
+                        pageNumber={prefetchPageNumber}
+                        width={pageWidth}
+                        renderAnnotationLayer={false}
+                        renderTextLayer={false}
+                      />
+                    </div>
+                  )}
                 </Document>
               )}
             </div>
@@ -442,7 +865,7 @@ export const ReadingArea = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={handleReadPage}
+                onClick={() => handleReadPage(false)}
                 disabled={isReading}
                 className="hover:bg-primary/10"
               >
@@ -457,6 +880,15 @@ export const ReadingArea = () => {
               <Button
                 variant="ghost"
                 size="icon"
+                onClick={() => setAutoPlayEnabled(!autoPlayEnabled)}
+                className={`hover:bg-primary/10 ${autoPlayEnabled ? 'bg-primary/20 text-primary' : ''}`}
+                title={autoPlayEnabled ? 'Disable auto-play' : 'Enable auto-play'}
+              >
+                <Repeat className="h-4 lg:h-5 w-4 lg:w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 className="hover:bg-primary/10"
               >
                 <Mic className="h-4 lg:h-5 w-4 lg:w-5" />
@@ -467,19 +899,26 @@ export const ReadingArea = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handlePrevPage}
+                  onClick={() => handlePrevPage()}
                   disabled={pageNumber <= 1}
                   className="hover:bg-primary/10"
                 >
                   <ChevronLeft className="h-4 lg:h-5 w-4 lg:w-5" />
                 </Button>
-                <span className="text-sm text-muted-foreground">
-                  {pageNumber} / {numPages || '?'}
-                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-muted-foreground">
+                    {pageNumber} / {numPages || '?'}
+                  </span>
+                  {isPrefetching && (
+                    <span className="text-xs text-primary animate-pulse" title="Preparing next page">
+                      ●
+                    </span>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleNextPage}
+                  onClick={() => handleNextPage(false)}
                   disabled={!numPages || pageNumber >= numPages}
                   className="hover:bg-primary/10"
                 >
@@ -487,8 +926,25 @@ export const ReadingArea = () => {
                 </Button>
               </div>
             </div>
-            <div className="text-sm text-muted-foreground">
-              00:00 / 05:30
+            <div className="flex items-center gap-3">
+              <Slider
+                value={[audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0]}
+                max={100}
+                step={0.1}
+                onValueChange={(value) => {
+                  if (audioRef.current && audioRef.current.readyState >= 2 && audioDuration > 0) {
+                    const newTime = (value[0] / 100) * audioDuration;
+                    audioRef.current.currentTime = newTime;
+                    setAudioCurrentTime(newTime);
+                    setAudioPausedAt(newTime);
+                  }
+                }}
+                className="w-24 sm:w-32"
+                disabled={!audioRef.current || audioDuration === 0}
+              />
+              <div className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+                {formatTime(audioCurrentTime)} / {formatTime(audioDuration)}
+              </div>
             </div>
           </div>
         </Card>
