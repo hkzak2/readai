@@ -1,56 +1,120 @@
-# Welcome readai project
+# ReadAI
 
-## Project info
+ReadAI is an application that combines the power of PDFs and AI to provide an enhanced reading experience. The application allows users to load PDFs, extract text using OCR, and convert text to speech.
 
 This is an opensource project to help making reading books easily available to anyone with the help of AI
 
-## How can I edit this code?
+- PDF library management
+- Text extraction from PDF pages using AI
+- Text-to-speech functionality
+- AI-powered assistant
 
-There are several ways of editing your application.
+## Project Structure
 
-**Use your preferred IDE**
+The project is split into two main parts:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Frontend (React + TypeScript + Vite)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Modern UI with responsive design
+- PDF viewer with text extraction
+- Audio playback controls
+- Book library management
 
-Follow these steps:
+### Backend (Node.js + Express)
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+- PDF proxy endpoint to handle CORS
+- Image-to-text API using Gemini AI
+- Text-to-speech conversion using Gemini AI
+- RESTful API structure
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Getting Started
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Prerequisites
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+- Node.js (v18.0.0 or higher)
+- npm or yarn
+- Google Gemini API key
+
+### Installation
+
+1. Clone the repository
+```bash
+git clone <repository-url>
+cd readai
+```
+
+2. Set up the backend
+```bash
+cd backend
+npm install
+cp .env.example .env  # Then edit .env to add your Gemini API key
+```
+
+3. Set up the frontend
+```bash
+cd frontend
+npm install
+```
+
+### Running the Application
+
+1. Start the backend server
+```bash
+cd backend
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+2. Start the frontend development server
+```bash
+cd frontend
+npm run dev
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+3. Open your browser and navigate to `http://localhost:5173`
 
-**Use GitHub Codespaces**
+## API Endpoints
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Backend
 
-## What technologies are used for this project?
+- `GET /api/pdf-proxy?url=<url>` - Proxy a PDF from an external URL
+- `POST /api/image-to-text` - Extract text from an image
+- `POST /api/text-to-audio` - Convert text to audio
 
-This project is built with .
+## Environment Variables
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- Gemini
+### Backend
+
+See `.env.example` for a list of required environment variables.
+
+### Frontend
+
+- `VITE_API_URL` - URL of the backend API (default: http://localhost:3001/api)
+
+## Development
+
+The project follows a modular architecture with clear separation of concerns:
+
+- **Frontend**: React components, contexts, and services
+- **Backend**: Controllers, services, routes, and utilities
+
+## Production Deployment
+
+For production deployment:
+
+1. Build the frontend
+```bash
+cd frontend
+npm run build
+```
+
+2. Set the backend environment to production
+```bash
+# In backend/.env
+NODE_ENV=production
+```
+
+3. Configure proper CORS settings for your production domain
+
+## License
+
+[MIT](LICENSE)
