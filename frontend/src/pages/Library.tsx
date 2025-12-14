@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Pencil, Plus, Search, Grid, List, SortAsc, SortDesc, Filter, FileText } from "lucide-react";
+import { Trash2, Pencil, Plus, Search, Grid, List, SortAsc, SortDesc, Filter, FileText, Share2 } from "lucide-react";
 import { useBooks, Book } from "@/contexts/BooksContext";
 import { useNavigate } from "react-router-dom";
 import { EditBookModal } from "@/components/EditBookModal";
@@ -294,7 +294,22 @@ export default function Library() {
                     </p>
                   </div>
 
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toast({
+                          title: "Coming soon",
+                          description: "Share functionality will be available soon",
+                        });
+                      }}
+                      disabled={loading}
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
