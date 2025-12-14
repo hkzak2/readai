@@ -8,10 +8,8 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.development]
-VITE_API_URL = "http://localhost:3001/api"
 
 [userenv.production]
-VITE_API_URL = "http://localhost:3001/api"
 
 [workflows]
 runButton = "Project"
