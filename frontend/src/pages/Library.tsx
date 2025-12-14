@@ -269,17 +269,17 @@ export default function Library() {
                   className="glass bg-card/95 p-4 flex flex-col relative cursor-pointer hover:shadow-lg transition-shadow group"
                   onClick={() => handleBookClick(book)}
                 >
-                  <div className="aspect-[3/4] bg-muted mb-4 rounded-lg flex items-center justify-center">
+                  <div className="aspect-[3/4] bg-muted mb-4 rounded-lg overflow-hidden">
                     {(() => {
                       const coverSrc = book.thumbnail_url || book.coverUrl || book.defaultCover;
                       return coverSrc ? (
                         <img 
                           src={coverSrc}
                           alt={book.title}
-                          className="w-full h-full object-cover rounded-lg"
+                          className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="text-muted-foreground text-sm">No Cover</div>
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">No Cover</div>
                       );
                     })()}
                   </div>
