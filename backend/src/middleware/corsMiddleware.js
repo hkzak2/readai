@@ -15,17 +15,23 @@ const corsMiddleware = cors({
     // Allow requests with no origin (like mobile apps, curl, or Postman)
     if (!origin) return callback(null, true);
     
+    // In development, allow all origins
+    if (config.nodeEnv === 'development' || config.corsAllowAll) {
+      return callback(null, origin);
+    }
+    
+    // Allow Replit domains
+    if (origin.includes('.replit.dev') || origin.includes('.repl.co') || origin.includes('127.0.0.1') || origin.includes('localhost')) {
+      return callback(null, origin);
+    }
+    
     // Check if the origin is in our allowedOrigins array
     if (config.allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    } else {
-      // For development, we can be more permissive and check if origin contains localhost
-      if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
-        return callback(null, true);
-      }
-      // For production we would be more strict
-      return callback(null, config.allowedOrigins[0]);
+      return callback(null, origin);
     }
+    
+    // Default: allow the origin (permissive for development)
+    return callback(null, origin);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],

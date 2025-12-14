@@ -47,8 +47,13 @@ class SupabaseService {
     }
   }
   constructor() {
+    this.initialized = false;
+    
     if (!config.supabase.url || !config.supabase.serviceKey) {
-      throw new Error('Supabase configuration is missing. Please check your environment variables.');
+      logger.warn('Supabase configuration is missing. Backend will start but database features will be unavailable.');
+      this.supabase = null;
+      this.adminClient = null;
+      return;
     }
 
     // Create Supabase client with service key for backend operations
@@ -78,7 +83,14 @@ class SupabaseService {
       }
     );
 
+    this.initialized = true;
     logger.info('Supabase service initialized successfully');
+  }
+  
+  checkInitialized() {
+    if (!this.initialized) {
+      throw new Error('Supabase is not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.');
+    }
   }
 
   // User management

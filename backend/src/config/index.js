@@ -3,7 +3,7 @@ require('dotenv').config();
 const config = {
   // Server configuration
   nodeEnv: process.env.NODE_ENV || 'development',
-  port: parseInt(process.env.PORT, 10) || 3001,
+  port: parseInt(process.env.PORT, 10) || (process.env.NODE_ENV === 'production' ? 5000 : 3001),
   
   // API Keys
   geminiApiKey: process.env.GEMINI_API_KEY,
@@ -27,7 +27,11 @@ const config = {
         'http://localhost:4173',  // Vite preview port
         'http://localhost:8080',  // Docker frontend port
         'http://127.0.0.1:8080',  // Docker frontend IP access
+        'http://localhost:5000',  // Replit frontend port
+        'http://0.0.0.0:5000',    // Replit frontend
       ],
+  // Allow all Replit domains
+  corsAllowAll: process.env.CORS_ALLOW_ALL === 'true' || process.env.NODE_ENV === 'development',
   
   // Request limits
   maxRequestSize: process.env.MAX_REQUEST_SIZE || '10mb',
@@ -68,12 +72,12 @@ const config = {
   }
 };
 
-// Validate required configuration
+// Validate required configuration (warn instead of fail for development)
 const requiredConfig = ['geminiApiKey'];
 const missingConfig = requiredConfig.filter(key => !config[key]);
 
 if (missingConfig.length > 0) {
-  throw new Error(`Missing required configuration: ${missingConfig.join(', ')}`);
+  console.warn(`Warning: Missing configuration: ${missingConfig.join(', ')}. Some features may not work.`);
 }
 
 module.exports = config;
