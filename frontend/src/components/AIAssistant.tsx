@@ -23,8 +23,8 @@ export const AIAssistant = () => {
       ${isCollapsed 
         ? 'w-[50px] right-4 top-4 h-[calc(100vh-2rem)]'
         : `
-          sm:w-[calc(35vw-6rem)] sm:right-8 sm:top-4 sm:h-[calc(100vh-4rem)] sm:bottom-2
-          lg:h-[calc(100vh-4rem)] lg:bottom-2 sm:max-w-[600px]
+          sm:w-[calc(35vw-6rem)] sm:right-8 sm:top-4 sm:h-[calc(100vh-2rem)]
+          lg:h-[calc(100vh-2rem)] sm:max-w-[600px]
           w-full h-full right-0 top-0
         `
       }

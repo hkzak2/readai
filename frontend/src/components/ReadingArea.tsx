@@ -741,10 +741,10 @@ export const ReadingArea = () => {
   return (
     <main className={`h-full transition-all duration-300 z-0 
       ${isAICollapsed ? 'sm:pr-[74px]' : 'sm:pr-[calc(35vw-6rem)]'}`}>
-      <div className={`relative h-[calc(100vh-2rem)] sm:h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] 
+      <div className={`relative h-[calc(100vh-2rem)] sm:h-[calc(100vh-2rem)] lg:h-[calc(100vh-2rem)] 
         transition-all duration-300 ease-in-out
         ${isAICollapsed ? 'sm:w-[calc(100%-60px)]' : 'sm:w-[calc(70vw-2rem)] w-full'} 
-        px-4 sm:px-8`}>
+        px-4 sm:px-8 mt-4`}>
         
         {/* Reading area with fixed padding at bottom to make room for controls */}
         <Card className="h-[calc(100%-70px)] glass bg-card shadow-lg p-3 sm:p-4 lg:p-8 animate-fade-in">
